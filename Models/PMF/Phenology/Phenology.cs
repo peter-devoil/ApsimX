@@ -247,6 +247,7 @@ namespace Models.PMF.Phen
 
                 foreach (IPhase phase in phasesToRewind)
                 {
+                    Emerged = phase.IsEmerged;
                     if (!(phase is IPhaseWithTarget) && !(phase is GotoPhase) && !(phase is EndPhase) && !(phase is PhotoperiodPhase) && !(phase is LeafDeathPhase) && !(phase is DAWSPhase) && !(phase is StartPhase) && !(phase is GrazeAndRewind))
                     { throw new Exception("Can not rewind over phase of type " + phase.GetType()); }
                     if (phase is IPhaseWithTarget)
@@ -319,10 +320,13 @@ namespace Models.PMF.Phen
         }
 
         /// <summary>Allows setting of age if phenology has an age child</summary>
-        public void SetAge(int newAge)
+        public void SetAge(double newAge)
         {
             if (age != null)
-                age.Years = newAge;
+            {
+                age.Years = (int)newAge;
+                age.FractionComplete = newAge - age.Years;
+            }
         }
         
         /// <summary> A utility function to return true if the simulation is on the first day of the specified stage. </summary>
@@ -549,7 +553,7 @@ namespace Models.PMF.Phen
         [EventSubscribe("Pruning")]
         private void OnPruning(object sender, EventArgs e)
         {
-            Emerged = false;
+            
         }
 
         /// <summary>Called when crop is ending</summary>
