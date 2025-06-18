@@ -1,6 +1,4 @@
 ﻿using APSIM.Cli.Options;
-using APSIM.Interop.Documentation;
-using APSIM.Interop.Documentation.Formats;
 using APSIM.Shared.Documentation;
 using APSIM.Shared.Utilities;
 using CommandLine;
@@ -14,6 +12,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using APSIM.Documentation.Models;
+using APSIM.Core;
 
 namespace APSIM.Cli
 {
@@ -68,8 +67,8 @@ namespace APSIM.Cli
             }
             foreach (string file in files)
             {
-                Simulations sims = FileFormat.ReadFromFile<Simulations>(file, 
-                                        e => throw new Exception($"Error while trying to run {file}", e), false).NewModel as Simulations;
+                Simulations sims = FileFormat.ReadFromFile<Simulations>(file,
+                                        e => throw new Exception($"Error while trying to run {file}", e)).Model as Simulations;
 
                 Runner runner = new Runner(sims);
                 List<Exception> errors = runner.Run();
@@ -90,7 +89,7 @@ namespace APSIM.Cli
                 files = options.Files;
             foreach (string file in files)
             {
-                Simulations sims = FileFormat.ReadFromFile<Simulations>(file, e => throw e, false).NewModel as Simulations;
+                Simulations sims = FileFormat.ReadFromFile<Simulations>(file).Model as Simulations;
                 IModel model = sims;
                 if (Path.GetExtension(file) == ".json")
                     sims.Links.Resolve(sims, true, true, false);
@@ -106,13 +105,10 @@ namespace APSIM.Cli
                         throw new Exception($"{options.Path} resolved to {value}, which is not a model");
                 }
 
-                string pdfFile = Path.ChangeExtension(file, ".pdf");
-                string directory = Path.GetDirectoryName(file);
-                PdfWriter writer = new PdfWriter(new PdfOptions(directory, null));
-                IEnumerable<ITag> tags = options.ParamsDocs ? new ParamsInputsOutputs(model).Document() : AutoDocumentation.Document(model);
-                // Make params/inputs/outputs docs landscape (they have some rather wide tables). Everything else, portrait.
-                bool vertical = !options.ParamsDocs;
-                writer.Write(pdfFile, tags, vertical);
+                string htmlFile = Path.ChangeExtension(file, ".html");
+                IEnumerable<ITag> tags = options.ParamsDocs ? InterfaceDocumentation.Document(model) : AutoDocumentation.Document(model);
+                string html = APSIM.Documentation.WebDocs.TagsToHTMLString(tags.ToList());
+                File.WriteAllText(htmlFile, html);
             }
         }
 

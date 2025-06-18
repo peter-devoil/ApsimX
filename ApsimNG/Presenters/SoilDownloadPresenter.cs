@@ -22,7 +22,9 @@ using UserInterface.Views;
 using Utility;
 using System.Web;
 using System.Text;
-using Gtk;
+using Models.Soils.SoilTemp;
+using APSIM.Numerics;
+using APSIM.Core;
 
 namespace UserInterface.Presenters
 {
@@ -31,7 +33,7 @@ namespace UserInterface.Presenters
         /// <summary>
         /// URI for accessing the Google geocoding API. I don't recall exactly who owns this key!
         /// </summary>
-        private static string googleGeocodingApi = "https://maps.googleapis.com/maps/api/geocode/json?key=AIzaSyA4QRojYT4wqhZMiXrFklkWwC_pkg4qJJ8";
+        private static string googleGeocodingApi = "https://maps.googleapis.com/maps/api/geocode/json?key=AIzaSyA4QRojYT4wqhZMiXrFklkWwC_pkg4qJJ8&";
 
         /// <summary>The view.</summary>
         private ViewBase view;
@@ -133,8 +135,8 @@ namespace UserInterface.Presenters
             if(weatherModel == null)
             {
                 this.explorerPresenter.MainPresenter.
-                    ShowMessage("Tip: To have the latitude and longitude fields auto-filled add a weather node to your simulation.", 
-                    Simulation.MessageType.Warning, 
+                    ShowMessage("Tip: To have the latitude and longitude fields auto-filled add a weather node to your simulation.",
+                    Simulation.MessageType.Warning,
                     true);
             }
             radiusEditBox.Text = "10";
@@ -293,8 +295,8 @@ namespace UserInterface.Presenters
             var pawcConcentration = MathUtilities.Divide(pawc, soilPhysical.Thickness);
             var mappedPawcConcentration = SoilUtilities.MapConcentration(pawcConcentration, soilPhysical.Thickness, pawcmappingLayerStructure, 0);
             var mappedPawc = MathUtilities.Multiply(mappedPawcConcentration, pawcmappingLayerStructure);
-            row["PAWC to 300mm"] = mappedPawc[0]; 
-            row["PAWC to 600mm"] = (mappedPawc[0] + mappedPawc[1]); 
+            row["PAWC to 300mm"] = mappedPawc[0];
+            row["PAWC to 600mm"] = (mappedPawc[0] + mappedPawc[1]);
             row["PAWC to 1500mm"] = mappedPawc.Sum();
 
             return row;
@@ -350,7 +352,7 @@ namespace UserInterface.Presenters
         {
             var soils = new List<SoilFromDataSource>();
             try
-            {                
+            {
                 if(!double.TryParse(latitudeEditBox.Text, out double latitude))
                     throw new Exception("Latitude field has invalid input \"" + radiusEditBox.Text +"\"");
 
@@ -359,7 +361,7 @@ namespace UserInterface.Presenters
 
                 if(!double.TryParse(radiusEditBox.Text, out double radius))
                     throw new Exception("Radius field has invalid input \"" + radiusEditBox.Text +"\"");
-                
+
                 string url = $"http://apsimdev.apsim.info/ApsoilWebService/Service.asmx/SearchSoilsReturnInfo?latitude={latitude}&longitude={longitude}&radius={radius}&SoilType=";
                 using (var stream = await WebUtilities.ExtractDataFromURL(url, cancellationTokenSource.Token))
                 {
@@ -380,7 +382,7 @@ namespace UserInterface.Presenters
                             foreach (XmlNode soilNode in XmlUtilities.ChildNodesRecursively(soilDoc, "Soil"))
                             {
                                 var soilXML = $"<folder>{soilNode.OuterXml}</folder>";
-                                var folder = FileFormat.ReadFromString<Folder>(soilXML, e => throw e, false).NewModel as Folder;
+                                var folder = FileFormat.ReadFromFile<Folder>(soilXML).Model as Folder;
                                 if (folder.Children.Any())
                                 {
                                     var soil = folder.Children[0] as Soil;
@@ -433,8 +435,7 @@ namespace UserInterface.Presenters
                 // We will have either 0 or 1 soil nodes
                 if (soilNodes.Count > 0)
                 {
-                    var soil = FileFormat.ReadFromString<Soil>(soilNodes[0].OuterXml, e => throw e, false).NewModel as Soil;
-                    soil.OnCreated();
+                    var soil = FileFormat.ReadFromFile<Soil>(soilNodes[0].OuterXml).Model as Soil;
                     InitialiseSoil(soil);
                     soils.Add(new SoilFromDataSource()
                     {
@@ -478,7 +479,7 @@ namespace UserInterface.Presenters
                 if (soilNodes.Count > 0)
                 {
                     var soilXML = $"<folder>{soilNodes[0].OuterXml}</folder>";
-                    var soilFolder = FileFormat.ReadFromString<Folder>(soilXML, e => throw e, false).NewModel as Folder;
+                    var soilFolder = FileFormat.ReadFromFile<Folder>(soilXML).Model as Folder;
                     var soil = soilFolder.Children[0] as Soil;
                     InitialiseSoil(soil);
 
@@ -508,31 +509,32 @@ namespace UserInterface.Presenters
         /// <param name="soil"></param>
         private static void InitialiseSoil(Soil soil)
         {
-            var temperature = soil.FindChild<CERESSoilTemperature>();
-            if (temperature == null)
-                soil.Children.Add(new CERESSoilTemperature() {Name = "Temperature"});
+            var ceresSoilTemperature = soil.FindChild<CERESSoilTemperature>();
+            var soilTemperature = soil.FindChild<SoilTemperature>();
+            if (soilTemperature == null && ceresSoilTemperature == null)
+                soil.Node.AddChild(new SoilTemperature() {Name = "Temperature"});
             else
-                temperature.Name = "Temperature";
+                soilTemperature.Name = "Temperature";
 
             var physical = soil.FindChild<Physical>();
             if (physical != null)
             {
                 if (soil.FindChild<Solute>("NO3") == null)
-                    soil.Children.Add(new Solute()
+                    soil.Node.AddChild(new Solute()
                     {
                         Name = "NO3",
                         Thickness = physical.Thickness,
                         InitialValues = MathUtilities.CreateArrayOfValues(1.0, physical.Thickness.Length)
                     });
                 if (soil.FindChild<Solute>("NH4") == null)
-                    soil.Children.Add(new Solute()
+                    soil.Node.AddChild(new Solute()
                     {
                         Name = "NH4",
                         Thickness = physical.Thickness,
                         InitialValues = MathUtilities.CreateArrayOfValues(0.1, physical.Thickness.Length)
                     });
                 if (soil.FindChild<Solute>("Urea") == null)
-                    soil.Children.Add(new Solute()
+                    soil.Node.AddChild(new Solute()
                     {
                         Name = "Urea",
                         Thickness = physical.Thickness,
@@ -554,7 +556,7 @@ namespace UserInterface.Presenters
                 {
                     pinus = euc.Clone();
                     pinus.Name = "PinusSoil";
-                    physical.Children.Add(pinus);
+                    physical.Node.AddChild(pinus);
                 }
                 var scrum = physical.FindChild<SoilCrop>("SCRUMSoil");
                 var firstSoilCrop = physical.FindChild<SoilCrop>();
@@ -562,15 +564,14 @@ namespace UserInterface.Presenters
                 {
                     scrum = firstSoilCrop.Clone();
                     scrum.Name = "SCRUMSoil";
-                    physical.Children.Add(scrum);
+                    physical.Node.AddChild(scrum);
                 }
             }
-            soil.OnCreated();
         }
 
         /// This alternative approach for obtaining ISRIC soil data need a little bit more work, but is largely complete
         /// There are still bits of the soil organic matter initialisation that should be enhanced.
-        /// We probably don't really need two different ways to get to ISRIC data, but it may be interesting to see how the 
+        /// We probably don't really need two different ways to get to ISRIC data, but it may be interesting to see how the
         /// two compare. The initial motiviation was what appears to be an order-of-magnitude problem with soil carbon
         /// in the World Modellers version.
         /// <summary>
@@ -824,8 +825,6 @@ namespace UserInterface.Presenters
                     newSoil.Children.Add(no3);
                     newSoil.Children.Add(nh4);
                     newSoil.Children.Add(temperature);
-                    newSoil.ParentAllDescendants();
-                    newSoil.OnCreated();
 
                     newSoil.Name = "Synthetic soil derived from ISRIC SoilGrids REST API";
                     newSoil.DataSource = "ISRIC SoilGrids";
@@ -974,7 +973,7 @@ namespace UserInterface.Presenters
                     temperature.Name = "Temperature";
 
                     newSoil.Children.Add(temperatureNew);
-                    newSoil.OnCreated();
+                    Node.Create(newSoil);
 
                     soils.Add(new SoilFromDataSource()
                     {
@@ -1125,7 +1124,7 @@ namespace UserInterface.Presenters
         {
             public string DataSource { get; set; }
             public Soil Soil { get; set; }
-            
+
         }
 
         /// <summary>

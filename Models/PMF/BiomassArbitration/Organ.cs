@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using APSIM.Numerics;
 using APSIM.Shared.Utilities;
 using Models.Core;
 using Models.Functions;
@@ -20,8 +21,6 @@ namespace Models.PMF
 
     public class Organ : Model, IOrgan, IHasDamageableBiomass
     {
-        ///0. Redundant satisification of IOrgan
-        ///--------------------------------------------------------------------------------------------------
         /// <summary>Harvest the organ.</summary>
         /// <returns>The amount of biomass (live+dead) removed from the plant (g/m2).</returns>
         public double Harvest()
@@ -121,7 +120,7 @@ namespace Models.PMF
         ///4. Public Events And Enums
         /// -------------------------------------------------------------------------------------------------
         /// <summary> The organs uptake object if it has one</summary>
-        ///         
+        ///
         ///5. Public Properties
         /// --------------------------------------------------------------------------------------------------
 
@@ -215,17 +214,17 @@ namespace Models.PMF
         /// <summary>Gets the maximum N concentration.</summary>
         [JsonIgnore]
         [Units("g/g")]
-        public double MaxNconc { get; private set; }
+        public double MaxNConc { get; private set; }
 
         /// <summary>Gets the minimum N concentration.</summary>
         [JsonIgnore]
         [Units("g/g")]
-        public double MinNconc { get; private set; }
+        public double MinNConc { get; private set; }
 
         /// <summary>Gets the minimum N concentration.</summary>
         [JsonIgnore]
         [Units("g/g")]
-        public double CritNconc { get; private set; }
+        public double CritNConc { get; private set; }
 
         /// <summary>Gets the total (live + dead) dry matter weight (g/m2)</summary>
         [JsonIgnore]
@@ -262,7 +261,7 @@ namespace Models.PMF
         /// <summary>Gets the total (live + dead) N concentration (g/g)</summary>
         [JsonIgnore]
         [Units("g/g")]
-        public double Nconc
+        public double NConc
         {
             get
             {
@@ -277,7 +276,7 @@ namespace Models.PMF
         {
             get
             {
-                return Live != null ? MathUtilities.Divide(Live.Nitrogen.Total, Live.Wt * MaxNconc, 1) : 0;
+                return Live != null ? MathUtilities.Divide(Live.Nitrogen.Total, Live.Wt * MaxNConc, 1) : 0;
             }
         }
 
@@ -288,7 +287,7 @@ namespace Models.PMF
         {
             get
             {
-                return (Live != null) ? Math.Min(1.0, MathUtilities.Divide(Nconc - MinNconc, CritNconc - MinNconc, 0)) : 0;
+                return (Live != null) ? Math.Min(1.0, MathUtilities.Divide(NConc - MinNConc, CritNConc - MinNConc, 0)) : 0;
             }
         }
 
@@ -388,6 +387,16 @@ namespace Models.PMF
             }
         }
 
+        /// <summary>Called when crop is harvested</summary>
+        /// <param name="sender">The sender.</param>
+        /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
+        [EventSubscribe("PostHarvesting")]
+        protected void OnPostHarvesting(object sender, HarvestingParameters e)
+        {
+            if (e.RemoveBiomass)
+                Harvest();
+        }
+
         /// <summary>
         /// set initial biomass for organ
         /// </summary>
@@ -395,7 +404,7 @@ namespace Models.PMF
         {
             Clear();
             ClearBiomassFlows();
-            setNconcs();
+            setNConcs();
             Nitrogen.setConcentrationsOrProportions();
             Carbon.setConcentrationsOrProportions();
 
@@ -419,6 +428,7 @@ namespace Models.PMF
         [EventSubscribe("DoPotentialPlantGrowth")]
         protected virtual void OnDoPotentialPlantGrowth(object sender, EventArgs e)
         {
+            ClearBiomassFlows();
             if (parentPlant.IsAlive)
             {
                 //Set start properties used for mass balance checking
@@ -438,9 +448,9 @@ namespace Models.PMF
                 }
 
                 //Do initial calculations
-                SenescenceRate = senescenceRate.Value();
-                DetachmentRate = detachmentRate.Value();
-                setNconcs();
+                SenescenceRate = Math.Min(senescenceRate.Value(),1);
+                DetachmentRate = Math.Min(detachmentRate.Value(),1);
+                setNConcs();
                 Carbon.SetSuppliesAndDemands();
             }
         }
@@ -515,7 +525,7 @@ namespace Models.PMF
                 checkMassBalance(startLiveN, startDeadN, "N");
                 checkMassBalance(startLiveC, startDeadC, "C");
                 checkMassBalance(startLiveWt, startDeadWt, "Wt");
-                ClearBiomassFlows();
+                //ClearBiomassFlows();
             }
         }
 
@@ -556,7 +566,7 @@ namespace Models.PMF
         /// <param name="sender">The sender.</param>
         /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
         [EventSubscribe("EndCrop")]
-        protected void onEndCrop(object sender, EventArgs e) 
+        protected void onEndCrop(object sender, EventArgs e)
         {
             resetOrganTomorrow = true;
         }
@@ -605,11 +615,11 @@ namespace Models.PMF
             }
         }
 
-        private void setNconcs()
+        private void setNConcs()
         {
-            MaxNconc = Nitrogen.ConcentrationOrFraction != null ? Nitrogen.ConcentrationOrFraction.Storage : 0;
-            MinNconc = Nitrogen.ConcentrationOrFraction != null ? Nitrogen.ConcentrationOrFraction.Structural : 0;
-            CritNconc = Nitrogen.ConcentrationOrFraction != null ? Nitrogen.ConcentrationOrFraction.Metabolic : 0;
+            MaxNConc = Nitrogen.ConcentrationOrFraction != null ? Nitrogen.ConcentrationOrFraction.Storage : 0;
+            MinNConc = Nitrogen.ConcentrationOrFraction != null ? Nitrogen.ConcentrationOrFraction.Structural : 0;
+            CritNConc = Nitrogen.ConcentrationOrFraction != null ? Nitrogen.ConcentrationOrFraction.Metabolic : 0;
         }
     }
 }
