@@ -145,7 +145,7 @@ namespace Models.PMF.Arbitrator
             }
 
             double wEpsilon = 1.0E-5;
-            if (waterSupply > 0 && waterDemand - waterUsed > wEpsilon)
+            if (waterSupply > 0 && Math.Min(waterSupply, waterDemand) - waterUsed > wEpsilon)
                 throw new Exception($"Unused water remaining ({waterDemand - waterUsed}) after layer allocation");
 
             return ZWNs;
@@ -230,6 +230,7 @@ namespace Models.PMF.Arbitrator
         /// <remarks>
         /// The 
         /// </remarks>
+        //fixme???[JsonIgnore]
         [Link(Type = LinkType.Child, ByName = true)]
         public IFunction ExtractionPreference = null;
     }
