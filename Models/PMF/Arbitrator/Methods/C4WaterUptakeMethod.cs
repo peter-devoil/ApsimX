@@ -78,9 +78,6 @@ namespace Models.PMF.Arbitrator
                 Waterdemands.Add(Can as IHasWaterDemand);
 
             WaterDemands = Waterdemands;
-            if (ExtractionPreference == null)
-                ExtractionPreference = new Constant("ExtractionPreference", 0);
-            
             SDRatio = 0.0;
             SWAvail = 0.0;
         }
@@ -134,7 +131,7 @@ namespace Models.PMF.Arbitrator
                     var req = waterDemand - waterUsed; // the amount we are requesting after existing allocation
                     var maxAmt = Math.Max(0.0, Math.Min(maxAvail, req)); // the maximum amount we can request from this layer
                     if (maxAmt > uptake.Water[j]) {
-                        var pref = Math.Max(0, (maxAmt - uptake.Water[j]) * ExtractionPreference.Value()); // the difference between uniform extr, and maximum preferred
+                        var pref = Math.Max(0, (maxAmt - uptake.Water[j]) *  (ExtractionPreference is null ? 0 : ExtractionPreference.Value())); // the difference between uniform extr, and maximum preferred
                         uptake.Water[j] = Math.Max(0, uptake.Water[j] + pref); // add that difference to uptake
                     } else {
                         uptake.Water[j] = Math.Min(supplies[i][j], Math.Max(0, maxAmt));
