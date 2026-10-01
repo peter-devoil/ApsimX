@@ -30,14 +30,14 @@ namespace UnitTests
         [SetUp]
         public void Initialise()
         {
-            if (ProcessUtilities.CurrentOS.IsWindows)
-            {
-                string sqliteSourceFileName = FindSqlite3DLL();
-                Directory.SetCurrentDirectory(Path.GetDirectoryName(sqliteSourceFileName));
-            }
-
             database = new SQLite();
             database.OpenDatabase(":memory:", readOnly: false);
+        }
+
+        [TearDown]
+        public void Cleanup()
+        {
+            database?.CloseDatabase();
         }
 
         [Test]
@@ -63,7 +63,7 @@ namespace UnitTests
             Utilities.InjectLink(tool, "dataStore", dataStore);
             tool.Run();
             dataStore.Writer.Stop();
-            dataStore.Reader.Refresh();
+            dataStore.Refresh();
             var data = dataStore.Reader.GetData("CreateProfileTable");
 
             DataTable table = Utilities.CreateTable(new string[] { "CheckpointName", "CheckpointID", "SimulationName", "SimulationID", "Year", "Col1", "Col2" },
@@ -85,7 +85,7 @@ namespace UnitTests
             database.CreateTable("_Checkpoints", columnNames, columnTypes);
             List<object[]> rows = new List<object[]>
             {
-                new object[] { 1, "Current", string.Empty, string.Empty }
+                new object[] { 1, "Current", string.Empty, string.Empty, 0 }
             };
             database.InsertRows("_Checkpoints", columnNames, rows);
 

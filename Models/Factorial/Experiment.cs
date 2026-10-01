@@ -5,6 +5,7 @@ using System.Text;
 using Models.Core;
 using Models.Core.Run;
 using Models.Optimisation;
+using APSIM.Core;
 
 namespace Models.Factorial
 {
@@ -17,9 +18,12 @@ namespace Models.Factorial
     [PresenterName("UserInterface.Presenters.ExperimentPresenter")]
     [ValidParent(ParentType = typeof(Simulations))]
     [ValidParent(ParentType = typeof(CroptimizR))]
-    [ScopedModel]
-    public class Experiment : Model, ISimulationDescriptionGenerator
+    public class Experiment : Model, ISimulationDescriptionGenerator, IScopedModel, IStructureDependency
     {
+        /// <summary>Structure instance supplied by APSIM.core.</summary>
+        [field: NonSerialized]
+        public IStructure Structure { private get; set; }
+
         /// <summary>
         /// List of names of the disabled simulations. Any simulation name not in this list is assumed to be enabled.
         /// </summary>
@@ -42,43 +46,11 @@ namespace Models.Factorial
                 allCombinations.RemoveAll(comb => DisabledSimNames.Contains(GetName(comb)));
             }
 
+            // Loop through all combinations and add a simulation description to the
+            // list of simulations descriptions being returned to the caller.
             if (allCombinations != null)
-            {
-                // Find base simulation.
-                var baseSimulation = this.FindChild<Simulation>();
-
-                // Loop through all combinations and add a simulation description to the
-                // list of simulations descriptions being returned to the caller.
                 foreach (var combination in allCombinations)
-                {
-                    // Create a simulation.
-                    var simulationName = GetName(combination);
-                    var simDescription = new SimulationDescription(baseSimulation, simulationName, true);
-
-                    // Add an experiment descriptor.
-                    simDescription.Descriptors.Add(new SimulationDescription.Descriptor("Experiment", Name));
-
-                    // Add a simulation descriptor.
-                    simDescription.Descriptors.Add(new SimulationDescription.Descriptor("SimulationName", simulationName));
-
-                    // Don't need to add a folderName descriptor, as this will be added by the base simulation.
-                    IEnumerable<SimulationDescription> descriptions = baseSimulation?.GenerateSimulationDescriptions();
-                    if (descriptions == null)
-                        descriptions = Enumerable.Empty<SimulationDescription>();
-                    foreach (var simulationDescriptor in descriptions)
-                    {
-                        foreach (var descriptor in simulationDescriptor.Descriptors)
-                            if (descriptor.Name != "SimulationName")
-                                simDescription.Descriptors.Add(descriptor);
-                    }
-
-                    // Apply each composite factor of this combination to our simulation description.
-                    combination.ForEach(c => c.ApplyToSimulation(simDescription));
-
-                    // Add simulation description to the return list of descriptions
-                    yield return simDescription;
-                }
-            }
+                    yield return GetDescriptors(combination);
         }
 
         /// <summary>
@@ -86,9 +58,9 @@ namespace Models.Factorial
         /// </summary>
         public string GetDesign()
         {
-            Factors factors = FindChild<Factors>();
+            Factors factors = Structure.FindChild<Factors>();
             StringBuilder design = new StringBuilder(GetTreatmentDescription(factors));
-            foreach (Permutation permutation in factors.FindAllChildren<Permutation>())
+            foreach (Permutation permutation in Structure.FindChildren<Permutation>(relativeTo: factors))
                 design.Append(GetTreatmentDescription(permutation));
 
             var simulationNames = GenerateSimulationDescriptions().Select(s => s.Name);
@@ -96,9 +68,46 @@ namespace Models.Factorial
             return design.ToString();
         }
 
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="factors"></param>
+        /// <returns></returns>
+        public SimulationDescription GetDescriptors(List<CompositeFactor> factors)
+        {
+            Simulation baseSimulation = Structure.FindChild<Simulation>();
+
+            // Create a simulation.
+            string simulationName = GetName(factors);
+            SimulationDescription simDescription = new SimulationDescription(baseSimulation, simulationName);
+
+            // Add an experiment descriptor.
+            simDescription.Descriptors.Add(new SimulationDescriptor("Experiment", Name));
+
+            // Add a simulation descriptor.
+            simDescription.Descriptors.Add(new SimulationDescriptor("SimulationName", simulationName));
+
+            // Don't need to add a folderName descriptor, as this will be added by the base simulation.
+            IEnumerable<SimulationDescription> descriptions = baseSimulation?.GenerateSimulationDescriptions();
+            if (descriptions == null)
+                descriptions = Enumerable.Empty<SimulationDescription>();
+            foreach (var simulationDescriptor in descriptions)
+            {
+                foreach (var descriptor in simulationDescriptor.Descriptors)
+                    if (descriptor.Name != "SimulationName")
+                        simDescription.Descriptors.Add(descriptor);
+            }
+
+            // Apply each composite factor of this combination to our simulation description.
+            factors.ForEach(c => c.ApplyToSimulation(simDescription));
+
+            // Add simulation description to the return list of descriptions
+            return simDescription;
+        }
+
         private string GetTreatmentDescription(IModel factors)
         {
-            return string.Join(" x ", factors.FindAllChildren<Factor>().Select(f => f.Name));
+            return string.Join(" x ", Structure.FindChildren<Factor>(relativeTo: factors as INodeModel).Select(f => f.Name));
         }
 
         /// <summary>
@@ -106,13 +115,13 @@ namespace Models.Factorial
         /// </summary>
         private List<List<CompositeFactor>> CalculateAllCombinations()
         {
-            Factors Factors = this.FindChild<Factors>();
+            Factors Factors = Structure.FindChild<Factors>();
 
             // Create a list of list of factorValues so that we can do permutations of them.
             List<List<CompositeFactor>> allValues = new List<List<CompositeFactor>>();
             if (Factors != null)
             {
-                foreach (CompositeFactor compositeFactor in Factors.FindAllChildren<CompositeFactor>())
+                foreach (CompositeFactor compositeFactor in Structure.FindChildren<CompositeFactor>(relativeTo: Factors))
                 {
                     if (compositeFactor.Enabled)
                         allValues.Add(new List<CompositeFactor>() { compositeFactor });
@@ -123,10 +132,16 @@ namespace Models.Factorial
                         foreach (var compositeFactor in factor.GetCompositeFactors())
                             allValues.Add(new List<CompositeFactor>() { compositeFactor });
                 }
-                foreach (Permutation factor in Factors.FindAllChildren<Permutation>())
+                foreach (Permutation factor in Structure.FindChildren<Permutation>(relativeTo: Factors))
                 {
                     if (factor.Enabled)
                         allValues.AddRange(factor.GetPermutations());
+                }
+                foreach (FactorFromFile factor in Structure.FindChildren<FactorFromFile>(relativeTo: Factors))
+                {
+                    if (factor.Enabled)
+                        foreach (var compositeFactor in factor.GetCompositeFactors())
+                            allValues.Add(new List<CompositeFactor>() { compositeFactor });
                 }
 
                 return allValues;

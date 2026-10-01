@@ -1,4 +1,6 @@
 ﻿using System;
+using APSIM.Core;
+using APSIM.Numerics;
 using APSIM.Shared.Utilities;
 using Models.Core;
 using Models.Functions;
@@ -9,12 +11,16 @@ namespace Models.PMF
     /// Calculates the Deficit of a given labile nutrient pool and returns it to use for a demand.
     /// </summary>
     [Serializable]
-    [Description("This function calculates demands for metabolic and storage pools based on the size of the potential deficits of these pools.  For nutrients is uses maximum, critical and minimum concentration thresholds and for carbon it uses structural, metabolic and storage partitioning proportions to ")]
+    [Description("This function calculates carbon partitioning fractions relative to nitrogen thresholds.  i.e Structural proportion = MinNConc/MaxNConc; Metabolic proportion = (CritNConc/MaxNConc) - Structural proportion; Storage proportion = 1 - Structural Proportion - Metabolic Proportion")]
     [ViewName("UserInterface.Views.PropertyView")]
     [PresenterName("UserInterface.Presenters.PropertyPresenter")]
     [ValidParent(ParentType = typeof(NutrientProportionFunctions))]
-    public class CalculateCarbonFractionFromNConc : Model, IFunction
+    public class CalculateCarbonFractionFromNConc : Model, IFunction, IStructureDependency
     {
+        /// <summary>Structure instance supplied by APSIM.core.</summary>
+        [field: NonSerialized]
+        public IStructure Structure { private get; set; }
+
         /// <summary>Value to multiply demand for.  Use to switch demand on and off</summary>
         [Link(IsOptional = true, Type = LinkType.Child, ByName = true)]
         [Description("Multiplies calculated demand.  Use to switch demand on and off")]
@@ -39,7 +45,7 @@ namespace Models.PMF
         }
         private OrganNutrientDelta FindNutrientDelta(string NutrientType, Organ parentOrgan)
         {
-            var nutrientDelta = parentOrgan.FindChild(NutrientType) as OrganNutrientDelta;
+            var nutrientDelta = Structure.FindChild<OrganNutrientDelta>(NutrientType, relativeTo: parentOrgan);
             //should we throw an exception if the delta is missing?
             return nutrientDelta;
         }

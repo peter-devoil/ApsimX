@@ -33,8 +33,8 @@ namespace APSIM.Documentation.Models.Types
             // Remove summary, summary is superfluous.
             if (section.Children.Count >= 2)
                 section.Children.RemoveAt(0);
-            
-            foreach(ModelsMap map in model.FindAllChildren<ModelsMap>().Where(map => map.Enabled))
+
+            foreach(ModelsMap map in model.Node.FindChildren<ModelsMap>().Where(map => map.Enabled))
             {
                 section.Add(AutoDocumentation.DocumentModel(map));
             }
@@ -42,7 +42,7 @@ namespace APSIM.Documentation.Models.Types
             // Write experiment descriptions. We don't call experiment.Document() here,
             // because we want to just show the experiment design (a string) and put it
             // inside a table cell.
-            IEnumerable<Experiment> experiments = model.FindAllChildren<Experiment>().Where(experiment => experiment.Enabled);
+            IEnumerable<Experiment> experiments = model.Node.FindChildren<Experiment>().Where(experiment => experiment.Enabled);
             if (experiments.Any())
             {
                 List<ITag> experimentsTag = new List<ITag>();
@@ -61,32 +61,58 @@ namespace APSIM.Documentation.Models.Types
                 section.Add(experimentsTag);
             }
 
-            // Document graphs under a experiment
-            foreach (Experiment exp in model.FindAllChildren<Experiment>().Where(f => f.Enabled))
+            List<ModelsGraph> childGraphs = model.Node.FindChildren<ModelsGraph>().Where(f => f.Enabled).ToList();
+            if (DocumentationSettings.GenerateGraphs)
             {
-                List<ITag> expTags = new List<ITag>();
-                foreach (Memo memo in exp.FindAllChildren<Memo>())
-                    expTags.AddRange(AutoDocumentation.DocumentModel(memo));
+                // Write page of graphs.
+                foreach(ModelsGraph graph in childGraphs)
+                {
+                    bool hide = graph.Node.FindParents<Folder>().Where(a => !a.ShowInDocs).Any();
+                    if (!hide)
+                        section.Add(AutoDocumentation.Document(graph));
+                }
+            }
 
-                if (expTags.Count > 0)
-                    section.Add(expTags);
+            // Document graphs under a experiment
+            foreach (Experiment exp in model.Node.FindChildren<Experiment>().Where(f => f.Enabled))
+            {
+                foreach (Memo memo in exp.Node.FindChildren<Memo>())
+                    section.Add(AutoDocumentation.DocumentModel(memo));
+
+                if (DocumentationSettings.GenerateGraphs)
+                {
+                    childGraphs = exp.Node.FindChildren<ModelsGraph>(recurse: true).Where(f => f.Enabled).ToList();
+                    foreach(ModelsGraph graph in childGraphs)
+                    {
+                        bool hide = graph.Node.FindParents<Folder>().Where(a => !a.ShowInDocs).Any();
+                        if (!hide)
+                            section.Add(AutoDocumentation.Document(graph));
+                    }
+                }
             }
 
             // Document graphs under a simulation
-            foreach (Simulation sim in model.FindAllChildren<Simulation>().Where(f => f.Enabled))
+            foreach (Simulation sim in model.Node.FindChildren<Simulation>().Where(f => f.Enabled))
             {
-                List<ITag> simTags = new List<ITag>();
-                foreach (Memo memo in sim.FindAllChildren<Memo>())
-                    simTags.AddRange(AutoDocumentation.DocumentModel(memo));
+                foreach (Memo memo in sim.Node.FindChildren<Memo>())
+                    section.Add(AutoDocumentation.DocumentModel(memo));
 
-                if (simTags.Count > 0)
-                    section.Add(simTags);
+                if (DocumentationSettings.GenerateGraphs)
+                {
+                    childGraphs = sim.Node.FindChildren<ModelsGraph>(recurse: true).Where(f => f.Enabled).ToList();
+                    foreach(ModelsGraph graph in childGraphs)
+                    {
+                        bool hide = graph.Node.FindParents<Folder>().Where(a => !a.ShowInDocs).Any();
+                        if (!hide)
+                            section.Add(AutoDocumentation.Document(graph));
+                    }
+                }
             }
-           
+
             // Document child folders.
-            foreach (Folder folder in model.FindAllChildren<Folder>().Where(f => f.Enabled))
+            foreach (Folder folder in model.Node.FindChildren<Folder>().Where(f => f.Enabled))
                 section.Add(AutoDocumentation.DocumentModel(folder));
-            
+
             return new List<ITag>() {section};
         }
 
@@ -98,8 +124,8 @@ namespace APSIM.Documentation.Models.Types
         {
             var graphs = new List<APSIM.Shared.Documentation.Graph>();
             var page = new ModelsGraphPage();
-            page.Graphs.AddRange(model.FindAllChildren<ModelsGraph>().Where(g => g.Enabled));
-            var storage = model.FindInScope<IDataStore>();
+            page.Graphs.AddRange(model.Node.FindChildren<ModelsGraph>().Where(g => g.Enabled));
+            var storage = model.Node.Find<IDataStore>();
             List<ModelsGraphPage.GraphDefinitionMap> definitionMaps = new();
             if (storage != null)
                 definitionMaps.AddRange(page.GetAllSeriesDefinitions(model, storage.Reader));

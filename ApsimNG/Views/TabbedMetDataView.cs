@@ -1,9 +1,10 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Data;
 using UserInterface.Interfaces;
 using Gtk;
-using UserInterface.Presenters;
+using System.IO;
+using APSIM.Shared.Utilities;
+using APSIMNG.Utility;
 
 // This is the view used by the WeatherFile component
 namespace UserInterface.Views
@@ -46,6 +47,7 @@ namespace UserInterface.Views
         public event BrowseDelegate ConstantsFileSelected;
 
         private Label labelFileName = null;
+        private Label labelFileNameRelative = null;
         private Box vbox1 = null;
         private Notebook notebook1 = null;
         private TextView textview1 = null;
@@ -72,6 +74,7 @@ namespace UserInterface.Views
         {
             Builder builder = BuilderFromResource("ApsimNG.Resources.Glade.TabbedMetDataView.glade");
             labelFileName = (Label)builder.GetObject("labelFileName");
+            labelFileNameRelative = (Label)builder.GetObject("labelFileNameRelative");
             vbox1 = (Box)builder.GetObject("vbox1");
             notebook1 = (Notebook)builder.GetObject("notebook1");
             textview1 = (TextView)builder.GetObject("textview1");
@@ -145,6 +148,22 @@ namespace UserInterface.Views
         {
             get { return labelFileName.Text; }
             set { labelFileName.Text = value; }
+        }
+
+        /// <summary>Gets or sets the filename.</summary>
+        /// <value>The filename.</value>
+        public string FilenameRelative
+        {
+            set { 
+                if (value.StartsWith("%root%"))
+                    labelFileNameRelative.Text = value;
+                else if (value.CompareTo(PathUtilities.GetAbsolutePath(value, null)) == 0)
+                    labelFileNameRelative.Text = value;
+                else if (value.StartsWith('/') || value.StartsWith('\\'))
+                    labelFileNameRelative.Text = "." + value;
+                else
+                    labelFileNameRelative.Text = "./" + value;
+            }
         }
 
         /// <summary>Gets or sets the filename.</summary>
@@ -286,7 +305,7 @@ namespace UserInterface.Views
         {
             try
             {
-                string fileName = AskUserForFileName("Choose a constants file to open", Utility.FileDialog.FileActionType.Open, "Plain text file (*.txt)|*.txt");
+                string fileName = AskUserForFileName("Choose a constants file to open", FileDialog.FileActionType.Open, "Plain text file (*.txt)|*.txt");
                 if (!String.IsNullOrEmpty(fileName))
                 {
                     ConstantsFileName = fileName;
@@ -310,7 +329,7 @@ namespace UserInterface.Views
         {
             try
             {
-                string fileName = AskUserForFileName("Choose a weather file to open", Utility.FileDialog.FileActionType.Open, "APSIM Weather file (*.met)|*.met|Excel file(*.xlsx)|*.xlsx|CSV file(*.csv)|*.csv", labelFileName.Text);
+                string fileName = AskUserForFileName("Choose a weather file to open", FileDialog.FileActionType.Open, "APSIM Weather file (*.met)|*.met|Excel file(*.xlsx)|*.xlsx|CSV file(*.csv)|*.csv|Binary file(*.bin)|*.bin", labelFileName.Text);
                 if (!String.IsNullOrEmpty(fileName))
                 {
                     Filename = fileName;
@@ -481,6 +500,9 @@ namespace UserInterface.Views
 
         /// <summary>Gets or sets the filename.</summary>
         string Filename { get; set; }
+
+        /// <summary>Gets or sets the filename.</summary>
+        string FilenameRelative { set; }
 
         /// <summary>Gets or sets the filename.</summary>
         string ConstantsFileName { get; set; }

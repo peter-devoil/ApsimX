@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using APSIM.Core;
+using APSIM.Numerics;
 using APSIM.Shared.Utilities;
 using Models.Core;
 
@@ -28,13 +30,19 @@ namespace Models.Functions
             get
             {
                 IFunction value;
-                IEnumerable<IFunction> ChildFunctions = FindAllChildren<IFunction>();
+                IEnumerable<IFunction> ChildFunctions = Node.FindChildren<IFunction>();
                 if (ChildFunctions.Count() == 1)
                     value = ChildFunctions.First();
                 else
                     throw new ApsimXException(this, "Moving sum function " + this.Name + " must only have one child node.");
                 return value;
             }
+        }
+
+        [EventSubscribe("StartOfSimulation")]
+        private void OnStartOfSimulation(object sender, EventArgs e)
+        {
+            FunctionUtilities.ValidateFunctionChildren(Node);
         }
 
         /// <summary>Called by Plant.cs when phenology routines are complete.</summary>

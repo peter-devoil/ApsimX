@@ -1,20 +1,18 @@
 using System;
 using System.Collections.Generic;
-using APSIM.Shared.Utilities;
+using APSIM.Core;
+using APSIM.Numerics;
 using Models.Core;
-using Models.Interfaces;
-using Models.Utilities;
-using Newtonsoft.Json;
 
 namespace Models.Functions
 {
     /// <summary>
-    /// This function is calculated from an XY matrix which returns a value for Y 
+    /// This function is calculated from an XY matrix which returns a value for Y
     /// interpolated from the Xvalue provided.
     /// </summary>
     [Serializable]
-    [ViewName("UserInterface.Views.XYPairsView")]
-    [PresenterName("UserInterface.Presenters.XYPairsPresenter")]
+    [ViewName("UserInterface.Views.QuadView")]
+    [PresenterName("UserInterface.Presenters.QuadPresenter")]
     [Description("Returns the corresponding Y value for a given X value, based on the line shape defined by the specified XY matrix.")]
     public class XYPairs : Model, IFunction, IIndexedFunction
     {
@@ -27,7 +25,6 @@ namespace Models.Functions
         [Description("Y")]
         [Display]
         public double[] Y { get; set; }
-
 
         /// <summary>Gets the value.</summary>
         /// <value>The value.</value>
@@ -42,8 +39,32 @@ namespace Models.Functions
         /// <returns></returns>
         public double ValueIndexed(double dX)
         {
-            bool DidInterpolate = false;
-            return MathUtilities.LinearInterpReal(dX, X, Y, out DidInterpolate);
+            return MathUtilities.LinearInterpReal(dX, X, Y, out bool DidInterpolate);
+        }
+
+        /// <summary>Values the indexed.</summary>
+        public string GetXName()
+        {
+            if (Parent != null)
+            {
+                List<IModel> siblings = Parent.Children;
+                foreach(IModel child in siblings)
+                    if (child is VariableReference)
+                        return (child as VariableReference).VariableName;
+            }
+            return "X";
+        }
+
+        /// <summary>
+        /// Return the y axis title.
+        /// </summary>
+        /// <returns>The axis title</returns>
+        public string GetYName()
+        {
+            if (Parent != null)
+                return Parent.Name;
+            else
+                return "Y";
         }
     }
 }

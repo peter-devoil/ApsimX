@@ -8,7 +8,7 @@ using GtkSource;
 using UserInterface.EventArguments;
 using UserInterface.Intellisense;
 using UserInterface.Interfaces;
-using Utility;
+using APSIMNG.Utility;
 using FontDescription = Pango.FontDescription;
 
 namespace UserInterface.Views
@@ -41,7 +41,7 @@ namespace UserInterface.Views
         /// <summary>
         /// The find-and-replace form
         /// </summary>
-        private FindAndReplaceForm findForm = new FindAndReplaceForm();
+        private APSIMNG.Utility.FindAndReplaceForm findForm = new APSIMNG.Utility.FindAndReplaceForm();
 
         /// <summary>
         /// Scrolled window
@@ -110,7 +110,7 @@ namespace UserInterface.Views
 
             set
             {
-                if (value != null)
+                if (value != null && textEditor != null)
                 {
                     textEditor.Buffer.BeginNotUndoableAction();
                     textEditor.Buffer.Text = value;
@@ -258,7 +258,7 @@ namespace UserInterface.Views
                                                                 scroller.Hadjustment.PageIncrement,
                                                                 scroller.Hadjustment.PageSize);
                 location.ScrollV = new ScrollerAdjustmentValues(scroller.Vadjustment.Value,
-                                                                scroller.Vadjustment.Lower, 
+                                                                scroller.Vadjustment.Lower,
                                                                 scroller.Vadjustment.Upper,
                                                                 scroller.Vadjustment.StepIncrement,
                                                                 scroller.Vadjustment.PageIncrement,
@@ -268,7 +268,7 @@ namespace UserInterface.Views
 
             set
             {
-                textEditor.GrabFocus();
+            //    textEditor.GrabFocus();
 
                 if (value.ScrollH.Valid)
                     scroller.Hadjustment.Configure(value.ScrollH.Value, value.ScrollH.Lower, value.ScrollH.Upper, value.ScrollH.StepIncrement, value.ScrollH.PageIncrement, value.ScrollH.PageSize);
@@ -337,7 +337,7 @@ namespace UserInterface.Views
         public EditorView(ViewBase owner) : base(owner)
         {
             scroller = new ScrolledWindow();
-            
+
             textEditor = new SourceView();
             textEditor.DragDataReceived += TextEditorDragDataReceived;
             textEditor.AutoIndent = true;
@@ -347,6 +347,7 @@ namespace UserInterface.Views
 
             scroller.Add(textEditor);
 
+            mainWidget = scroller;
             InitialiseWidget();
         }
 
@@ -363,12 +364,20 @@ namespace UserInterface.Views
         protected override void Initialise(ViewBase ownerView, GLib.Object gtkControl)
         {
             base.Initialise(ownerView, gtkControl);
-            Container parent = (Container)gtkControl;
-            mainWidget = parent;
-            scroller = new ScrolledWindow();
+
+            if (gtkControl is ScrolledWindow sw)
+                scroller = sw;
+            else
+                scroller = new ScrolledWindow();
+
             textEditor = new SourceView();
+            textEditor.DragDataReceived += TextEditorDragDataReceived;
+            textEditor.AutoIndent = true;
+            textEditor.InsertSpacesInsteadOfTabs = true;
+            
             scroller.Add(textEditor);
-            parent.Add(scroller);
+
+            mainWidget = scroller;
             InitialiseWidget();
         }
 
@@ -385,7 +394,6 @@ namespace UserInterface.Views
             // line on the second press.
             textEditor.SmartHomeEnd = SmartHomeEndType.Before;
 
-            mainWidget = scroller;
             textEditor.Buffer.Changed += OnTextHasChanged;
             textEditor.FocusInEvent += OnTextBoxEnter;
             textEditor.FocusOutEvent += OnTextBoxLeave;
@@ -413,7 +421,7 @@ namespace UserInterface.Views
 
             textEditor.Realized += OnRealized;
             IntelliSenseChars = ".";
-            ModifyFont(Utility.Configuration.Settings.EditorFontName);
+            ModifyFont(Configuration.Settings.EditorFontName);
         }
 
         /// <summary>
@@ -465,7 +473,7 @@ namespace UserInterface.Views
                 mainWidget.Destroyed -= _mainWidget_Destroyed;
 
                 // It's good practice to disconnect all event handlers, as it makes memory leaks
-                // less likely. However, we may not "own" the event handlers, so how do we 
+                // less likely. However, we may not "own" the event handlers, so how do we
                 // know what to disconnect?
                 // We can do this via reflection. Here's how it currently can be done in Gtk#.
                 // Windows.Forms would do it differently.
@@ -654,7 +662,8 @@ namespace UserInterface.Views
         public void Refresh()
         {
             //textEditor.Options.ColorScheme = Configuration.Settings.EditorStyleName;
-            textEditor.QueueDraw();
+            if (textEditor != null)
+                textEditor.QueueDraw();
         }
 
         /// <summary>
@@ -916,7 +925,8 @@ namespace UserInterface.Views
         /// </summary>
         public void Hide()
         {
-            textEditor.Visible = false;
+            if (textEditor != null)
+                textEditor.Visible = false;
         }
 
         /// <summary>
@@ -924,7 +934,8 @@ namespace UserInterface.Views
         /// </summary>
         public void Show()
         {
-            textEditor.Visible = true;
+            if (textEditor != null)
+                textEditor.Visible = true;
         }
 
         /// <summary>
@@ -946,7 +957,7 @@ namespace UserInterface.Views
         }
 
         /// <summary>
-        /// The Copy menu handler 
+        /// The Copy menu handler
         /// </summary>
         /// <param name="sender">The sending object</param>
         /// <param name="e">The event arguments</param>
@@ -1072,7 +1083,7 @@ namespace UserInterface.Views
                     item.Activated += OnChangeEditorStyle;
                 }
 
-                Utility.Configuration.Settings.EditorStyleName = caption;
+                Configuration.Settings.EditorStyleName = caption;
                 Configuration.Settings.Save();
                 //textEditor.Options.ColorScheme = caption;
                 textEditor.QueueDraw();
@@ -1086,7 +1097,7 @@ namespace UserInterface.Views
         }
 
         /// <summary>
-        /// Handle other changes to editor options. All we're really interested in 
+        /// Handle other changes to editor options. All we're really interested in
         /// here at present is keeping track of the editor zoom level.
         /// </summary>
         /// <param name="sender">Sender of the event</param>

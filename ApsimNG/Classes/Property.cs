@@ -7,11 +7,17 @@ using System.Linq;
 using System.Reflection;
 using APSIM.Shared.Extensions.Collections;
 using APSIM.Shared.Utilities;
+using Models;
 using Models.Core;
 using Models.LifeCycle;
+using Models.Management;
 using Models.PMF;
 using Models.Storage;
 using Models.Surface;
+using Models.Soils;
+
+using Models.Utilities;
+using Models.AgPasture;
 namespace UserInterface.Classes
 {
     public enum PropertyType
@@ -25,10 +31,10 @@ namespace UserInterface.Classes
         File,
         Files,
         Directory,
-        //Directories,
         Font,
         Numeric,
-        Code
+        Code,
+        Button
     }
 
     /// <summary>
@@ -136,7 +142,7 @@ namespace UserInterface.Classes
             else if (Value != null && typeof(IModel).IsAssignableFrom(Value.GetType()))
                 Value = ((IModel)Value).Name;
             else if (metadata.PropertyType.IsEnum)
-                Value = VariableProperty.GetEnumDescription((Enum)Enum.Parse(metadata.PropertyType, Value?.ToString()));
+                Value = AttributeUtilities.GetEnumDescription((Enum)Enum.Parse(metadata.PropertyType, Value?.ToString()));
             else if (metadata.PropertyType != typeof(bool) && metadata.PropertyType != typeof(System.Drawing.Color))
                 Value = ReflectionUtilities.ObjectToString(Value, CultureInfo.CurrentCulture);
 
@@ -222,7 +228,7 @@ namespace UserInterface.Classes
                     {
                         // Enums use dropdown
                         DropDownOptions = Enum.GetValues(metadata.PropertyType).Cast<Enum>()
-                                      .Select(e => VariableProperty.GetEnumDescription(e))
+                                      .Select(e => AttributeUtilities.GetEnumDescription(e))
                                       .ToArray();
                         DisplayMethod = PropertyType.DropDown;
                     }
@@ -230,7 +236,7 @@ namespace UserInterface.Classes
                     {
                         // Model selector - use a dropdown containing names of all models in scope.
                         DisplayMethod = PropertyType.DropDown;
-                        DropDownOptions = model.FindAllInScope()
+                        DropDownOptions = model.Node.FindAll<IModel>()
                                                .Where(m => metadata.PropertyType.IsAssignableFrom(m.GetType()))
                                                .Select(m => m.Name)
                                                .ToArray();
@@ -268,7 +274,7 @@ namespace UserInterface.Classes
 
                     // Attempt to resolve links - populating the dropdown may
                     // require access to linked models.
-                    Simulations sims = model.FindAncestor<Simulations>();
+                    Simulations sims = model.Node.FindParent<Simulations>(recurse: true);
                     if (sims != null)
                         sims.Links.Resolve(model, allLinks: true, throwOnFail: false);
 
@@ -277,12 +283,18 @@ namespace UserInterface.Classes
                     break;
                 case DisplayType.CultivarName:
                     DisplayMethod = PropertyType.DropDown;
+
                     IPlant plant = null;
-                    PropertyInfo plantProperty = model.GetType().GetProperties().FirstOrDefault(p => typeof(IPlant).IsAssignableFrom(p.PropertyType));
-                    if (plantProperty != null)
-                        plant = plantProperty.GetValue(model) as IPlant;
+                    if (!string.IsNullOrEmpty(attrib.PlantName))
+                        plant = model.Node.Find<IPlant>(attrib.PlantName);
                     else
-                        plant = model.FindInScope<IPlant>();
+                    {
+                        PropertyInfo plantProperty = model.GetType().GetProperties().FirstOrDefault(p => typeof(IPlant).IsAssignableFrom(p.PropertyType));
+                        if (plantProperty != null)
+                            plant = plantProperty.GetValue(model) as IPlant;
+                        else
+                            plant = model.Node.Find<IPlant>();
+                    }
                     if (plant != null)
                         DropDownOptions = PropertyPresenterHelpers.GetCultivarNames(plant);
                     else
@@ -290,17 +302,17 @@ namespace UserInterface.Classes
                     break;
                 case DisplayType.SCRUMcropName:
                     DisplayMethod = PropertyType.DropDown;
-                    Zone zoney = model.FindInScope<Zone>();
+                    Zone zoney = model.Node.Find<Zone>();
                     if (zoney != null)
                         DropDownOptions = PropertyPresenterHelpers.GetSCRUMcropNames(zoney);
                     break;
                 case DisplayType.TableName:
                     DisplayMethod = PropertyType.DropDown;
-                    DropDownOptions = model.FindInScope<IDataStore>()?.Reader?.TableNames?.ToArray();
+                    DropDownOptions = model.Node.Find<IDataStore>()?.Reader?.TableNames?.ToArray();
                     break;
                 case DisplayType.FieldName:
                     DisplayMethod = PropertyType.DropDown;
-                    IDataStore storage = model.FindInScope<IDataStore>();
+                    IDataStore storage = model.Node.Find<IDataStore>();
                     PropertyInfo tableNameProperty = model.GetType().GetProperties().FirstOrDefault(p => p.GetCustomAttribute<DisplayAttribute>()?.Type == DisplayType.TableName);
                     string tableName = tableNameProperty?.GetValue(model) as string;
                     if (storage != null && storage.Reader.TableNames.Contains(tableName))
@@ -308,13 +320,17 @@ namespace UserInterface.Classes
                     break;
                 case DisplayType.LifeCycleName:
                     DisplayMethod = PropertyType.DropDown;
-                    Zone zone = model.FindInScope<Zone>();
+                    Zone zone = model.Node.Find<Zone>();
                     if (zone != null)
                         DropDownOptions = PropertyPresenterHelpers.GetLifeCycleNames(zone);
                     break;
                 case DisplayType.CropStageName:
                     DisplayMethod = PropertyType.DropDown;
-                    Plant planty = model.FindInScope<Plant>();
+                    Plant planty = null;
+                    if (model.GetType().Name == "BiomassRemovalEvents")
+                        planty = model.Node.Find<Plant>(((BiomassRemovalEvents)model).NameOfPlantToRemoveFrom);
+                    else
+                        planty = model.Node.Find<Plant>();
                     if (planty != null)
                         DropDownOptions = PropertyPresenterHelpers.GetCropStageNames(planty);
                     break;
@@ -327,22 +343,22 @@ namespace UserInterface.Classes
                     break;
                 case DisplayType.CropPhaseName:
                     DisplayMethod = PropertyType.DropDown;
-                    Plant plantyy = model.FindInScope<Plant>();
+                    Plant plantyy = model.Node.Find<Plant>();
                     if (plantyy != null)
                         DropDownOptions = PropertyPresenterHelpers.GetCropPhaseNames(plantyy);
                     break;
                 case DisplayType.PlantOrganList:
                     DisplayMethod = PropertyType.DropDown;
-                    Zone zone1 = model.FindAncestor<Zone>();
-                    List<Plant> plants = zone1.FindAllChildren<Plant>().ToList();
+                    Zone zone1 = model.Node.FindParent<Zone>(recurse: true);
+                    List<Plant> plants = zone1.Node.FindChildren<Plant>().ToList();
                     if (plants != null)
                         DropDownOptions = PropertyPresenterHelpers.GetPlantOrgans(plants);
-                    break;  
+                    break;
                 case DisplayType.LifePhaseName:
                     DisplayMethod = PropertyType.DropDown;
                     LifeCycle lifeCycle = null;
                     if (attrib.LifeCycleName != null)
-                        lifeCycle = model.FindInScope<LifeCycle>(attrib.LifeCycleName);
+                        lifeCycle = model.Node.Find<LifeCycle>(attrib.LifeCycleName);
                     else
                     {
                         foreach (PropertyInfo property in model.GetType().GetProperties(BindingFlags.Public | BindingFlags.Instance))
@@ -350,7 +366,7 @@ namespace UserInterface.Classes
                             if (property.PropertyType == typeof(string))
                             {
                                 string value = property.GetValue(model) as string;
-                                LifeCycle match = model.FindInScope<LifeCycle>(value);
+                                LifeCycle match = model.Node.Find<LifeCycle>(value);
                                 if (match != null)
                                 {
                                     lifeCycle = match;
@@ -364,7 +380,7 @@ namespace UserInterface.Classes
                     break;
                 case DisplayType.Model:
                     DisplayMethod = PropertyType.DropDown;
-                    DropDownOptions = model.FindAllInScope().Where(m => metadata.PropertyType.IsAssignableFrom(m.GetType()))
+                    DropDownOptions = model.Node.FindAll<IModel>().Where(m => metadata.PropertyType.IsAssignableFrom(m.GetType()))
                                            .Select(m => m.Name)
                                            .ToArray();
                     break;
@@ -377,6 +393,15 @@ namespace UserInterface.Classes
                     }
                     else
                         throw new NotImplementedException($"Display type {displayType} is only supported on models of type {typeof(SurfaceOrganicMatter).Name}, but model is of type {model.GetType().Name}.");
+                case DisplayType.FertiliserType:
+                    var fertiliser = model.Node.Find<Fertiliser>();
+                    if (fertiliser != null)
+                    {
+                        DisplayMethod = PropertyType.DropDown;
+                        DropDownOptions = fertiliser.Node.FindChildren<FertiliserType>()
+                                                    .Select(c => c.Name).ToArray();
+                    }
+                    break;
                 case DisplayType.MultiLineText:
                     DisplayMethod = PropertyType.MultiLineText;
                     if (Value is IEnumerable enumerable && metadata.PropertyType != typeof(string))
@@ -386,16 +411,34 @@ namespace UserInterface.Classes
                     DisplayMethod = PropertyType.DropDown;
                     DropDownOptions = new string[3] { "Seed", "Emergence", "Seedling" };
                     break;
-                case DisplayType.ScrumHarvestStages: 
+                case DisplayType.ScrumHarvestStages:
                     DisplayMethod = PropertyType.DropDown;
                     DropDownOptions = new string[6] { "Vegetative", "EarlyReproductive", "MidReproductive", "LateReproductive", "Maturity", "Ripe" };
                     break;
                 case DisplayType.PlantName:
                     DisplayMethod = PropertyType.DropDown;
-                    var plantModels = model.FindAllInScope<Plant>();
+                    IEnumerable<IPlant> plantModels = model.Node.FindAll<Plant>().ToList();
+                    plantModels = plantModels.Concat(model.Node.FindAll<PastureSpecies>()).ToList();
                     if (plantModels != null)
                         DropDownOptions = plantModels.Select(plant => plant.Name).ToArray();
-                    break;                    
+                    break;
+                case DisplayType.SoilCrop:
+                    DisplayMethod = PropertyType.DropDown;
+                    Water water = model.Node.Find<Water>();
+                    if (water != null)
+                        DropDownOptions = water.AllowedRelativeTo.ToArray();
+                    break;
+                case DisplayType.StrumTreeTypes:
+                    DisplayMethod = PropertyType.DropDown;
+                    DropDownOptions = new string[2] { "Evergreen", "Deciduous" };
+                    break;
+                case DisplayType.CanopyTypes:
+                    DisplayMethod = PropertyType.DropDown;
+                    DropDownOptions = new string[4] { "BroadAcre", "TreeRow", "CropRow", "VineRow" };
+                    break;
+                case DisplayType.Button:
+                    DisplayMethod = PropertyType.Button;
+                    break;
 
                 // Should never happen - presenter should handle this(?)
                 //case DisplayType.SubModel:

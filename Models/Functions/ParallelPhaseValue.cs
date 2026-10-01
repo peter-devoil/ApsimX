@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using APSIM.Core;
 using Models.Core;
 using Models.PMF.Phen;
 
@@ -25,15 +26,15 @@ namespace Models.Functions
 
         /// <summary>The value to have from the start of the simulation until IsInPhase is true</summary>
         [Description("Value from start of simulatoin until IsInPhase")]
-        [Link(Type = LinkType.Child, ByName = true)] 
+        [Link(Type = LinkType.Child, ByName = true)]
         private IFunction StartValue = null;
-       
+
         /// <summary>The child functions</summary>
         private IEnumerable<IFunction> ChildFunctions;
 
         private double currentValue { get; set; }
 
-        
+
         /// <summary>Gets the value.</summary>
         /// <value>The value.</value>
         /// <exception cref="System.Exception">
@@ -51,13 +52,13 @@ namespace Models.Functions
         private void onPostPhenology(object sender, EventArgs e)
         {
             if (ChildFunctions == null)
-                ChildFunctions = FindAllChildren<IFunction>().ToList();
+                ChildFunctions = Node.FindChildren<IFunction>().ToList();
 
             if (pPhase.IsInPhase)
             {
                 foreach (IFunction kid in ChildFunctions)
                 {
-                    if (kid.Name != "StartValue")
+                    if ((kid as IModel).Name != "StartValue")
                         currentValue *= kid.Value(-1);
                 }
             }
@@ -77,11 +78,17 @@ namespace Models.Functions
         [EventSubscribe("StartOfDay")]
         private void onStartOfDay(object sender, EventArgs e)
         {
-            if (cropEndedYesterday) 
+            if (cropEndedYesterday)
             {
                 currentValue = StartValue.Value();
                 cropEndedYesterday = false;
             }
+        }
+
+        [EventSubscribe("StartOfSimulation")]
+        private void OnStartOfSimulation(object sender, EventArgs e)
+        {
+            FunctionUtilities.ValidateFunctionChildren(Node);
         }
 
         /// <summary>Called when [simulation commencing].</summary>
@@ -91,7 +98,7 @@ namespace Models.Functions
         private void OnSimulationCommencing(object sender, EventArgs e)
         {
             currentValue = StartValue.Value();
-            pPhase = plant.FindDescendant<IParallelPhase>(ParallelPhaseName);
+            pPhase = Node.FindChild<IParallelPhase>(ParallelPhaseName, relativeTo: plant as INodeModel, recurse: true);
         }
     }
 }

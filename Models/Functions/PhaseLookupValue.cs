@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using APSIM.Core;
 using Models.Core;
 using Models.PMF.Phen;
 
@@ -46,7 +47,7 @@ namespace Models.Functions
         public double Value(int arrayIndex = -1)
         {
             if (ChildFunctions == null)
-                ChildFunctions = FindAllChildren<IFunction>().ToList();
+                ChildFunctions = Node.FindChildren<IFunction>().ToList();
 
             if (Start == "")
                 throw new Exception("Phase start name not set:" + Name);
@@ -70,6 +71,12 @@ namespace Models.Functions
             {
                 return Phenology.Between(startStageIndex, endStageIndex);
             }
+        }
+
+        [EventSubscribe("StartOfSimulation")]
+        private void OnStartOfSimulation(object sender, EventArgs e)
+        {
+            FunctionUtilities.ValidateFunctionChildren(Node);
         }
 
         /// <summary>Called when [simulation commencing].</summary>

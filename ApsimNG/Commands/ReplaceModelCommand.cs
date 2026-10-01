@@ -1,8 +1,8 @@
 ﻿namespace UserInterface.Commands
 {
+    using APSIM.Core;
     using Interfaces;
     using Models.Core;
-    using Models.Core.ApsimFile;
     using System;
 
     /// <summary>This command replaces a model with another model.</summary>
@@ -11,13 +11,18 @@
         /// <summary>The model being replaced</summary>
         private IModel originalModel;
 
+        private Func<IModel, TreeViewNode> describeModel;
+
         /// <summary>Constructor.</summary>
         /// <param name="originalModel">The model being replaced.</param>
         /// <param name="replacement">The replacement model.</param>
-        public ReplaceModelCommand(IModel originalModel, IModel replacement)
+        /// <param name="describeModel"></param>
+
+        public ReplaceModelCommand(IModel originalModel, IModel replacement, Func<IModel, TreeViewNode> describeModel)
         {
             this.originalModel = originalModel;
             this.Replacement = replacement;
+            this.describeModel = describeModel;
         }
 
         /// <summary>
@@ -36,7 +41,10 @@
         public void Do(ITreeView tree, Action<object> modelChanged)
         {
             if (originalModel != null && Replacement != null)
-                Structure.Replace(originalModel, Replacement);
+            {
+                originalModel.Node.Parent.ReplaceChild(originalModel as INodeModel, Replacement as INodeModel);
+                tree.RefreshNode(Replacement.FullPath, describeModel(Replacement));
+            }
         }
 
         /// <summary>Undoes the command</summary>
@@ -46,8 +54,10 @@
         {
             if (originalModel != null && Replacement != null)
             {
-                IModel newModel = Structure.Replace(Replacement, originalModel);
+                Replacement.Node.Parent.ReplaceChild(Replacement as INodeModel, originalModel as INodeModel);
+                IModel newModel = originalModel;
                 modelChanged?.Invoke(newModel);
+                tree.RefreshNode(newModel.FullPath, describeModel(originalModel));
             }
         }
     }

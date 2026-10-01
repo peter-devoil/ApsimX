@@ -8,7 +8,7 @@ using UserInterface.Classes;
 using UserInterface.EventArguments;
 using Gtk;
 using UserInterface.Interfaces;
-using Utility;
+using APSIMNG.Utility;
 
 namespace UserInterface.Views
 {
@@ -20,7 +20,7 @@ namespace UserInterface.Views
     /// <remarks>
     /// The <see cref="PropertyChanged" /> event is triggered differently
     /// for different input widgets:
-    /// 
+    ///
     /// - When a check button is toggled
     /// - When a dropdown selected item is changed
     /// - When a text editor (GtkEntry or GtkTextView) loses focus,
@@ -75,7 +75,7 @@ namespace UserInterface.Views
         /// The values for the vertical scrollbar
         /// </summary>
         private ScrollerAdjustmentValues scrollV { get; set; } = null;
-        
+
         /// <summary>
         /// List of code editor views that have been created
         /// </summary>
@@ -175,11 +175,11 @@ namespace UserInterface.Views
             if (scrollV != null)
             {
                 ScrolledWindow scroller = mainWidget as ScrolledWindow;
-                scroller.Vadjustment?.Configure(scrollV.Value, 
-                                            scrollV.Lower, 
-                                            scrollV.Upper, 
-                                            scrollV.StepIncrement, 
-                                            scrollV.PageIncrement, 
+                scroller.Vadjustment?.Configure(scrollV.Value,
+                                            scrollV.Lower,
+                                            scrollV.Upper,
+                                            scrollV.StepIncrement,
+                                            scrollV.PageIncrement,
                                             scrollV.PageSize);
             }
         }
@@ -379,12 +379,10 @@ namespace UserInterface.Views
                     Button filesChooserButton = new("..."){ Name = property.ID.ToString() };
                     filesChooserButton.Clicked += (o, _) => ChooseFile(o as Widget, true, false);
 
-                    Box filenamesContainer = new HBox();
+                    Box filenamesContainer = new Box(Orientation.Horizontal, 0);
                     filenamesContainer.PackStart(filenamesOutline, true, true, 0);
                     filenamesContainer.PackStart(filesChooserButton, false, false, 0);
                     component = filenamesContainer;
-                    
-
                     break;
                 case PropertyType.Colour:
                     ColourDropDownView colourChooser = new ColourDropDownView(this);
@@ -421,6 +419,14 @@ namespace UserInterface.Views
                     btnFont.FontSet += OnFontChanged;
                     component = btnFont;
                     break;
+                case PropertyType.Button:
+                    Button clickableButton = new Button();
+                    clickableButton.Label = "Refresh";
+                    clickableButton.Name = property.ID.ToString();
+                    clickableButton.ActionName = property.Value?.ToString();
+                    clickableButton.Clicked += OnButtonClicked;
+                    component = clickableButton;
+                    break;
                 default:
                     throw new Exception($"Unknown display type {property.DisplayMethod}");
             }
@@ -443,6 +449,25 @@ namespace UserInterface.Views
                     StoreScrollerPosition();
                     Guid id = Guid.Parse(btnFont.Name);
                     PropertyChangedEventArgs args = new PropertyChangedEventArgs(id, btnFont.FontName);
+                    PropertyChanged?.Invoke(this, args);
+                }
+            }
+            catch (Exception err)
+            {
+                ShowError(err);
+            }
+        }
+
+        private void OnButtonClicked(object sender, EventArgs e)
+        {
+            try
+            {
+                if (sender is Button btn)
+                {
+                    StoreScrollerPosition();
+                    Guid id = Guid.Parse(btn.Name);
+                    bool value = bool.Parse(btn.ActionName);
+                    PropertyChangedEventArgs args = new PropertyChangedEventArgs(id, !value);
                     PropertyChanged?.Invoke(this, args);
                 }
             }
@@ -511,16 +536,16 @@ namespace UserInterface.Views
             try
             {
                 bool doUpdate = false;
-                if (e is KeyPressEventArgs) 
+                if (e is KeyPressEventArgs)
                 {
                     if (!(sender is TextView) && (e as KeyPressEventArgs).Event.Key == Gdk.Key.Return)
                         doUpdate = true;
                 }
-                else 
+                else
                 {
                     doUpdate = true;
                 }
-                if (doUpdate) 
+                if (doUpdate)
                 {
                     Widget widget = null;
                     if (sender is Widget)
@@ -551,7 +576,7 @@ namespace UserInterface.Views
                         }
                     }
                 }
-                
+
             }
             catch (Exception err)
             {
@@ -576,7 +601,7 @@ namespace UserInterface.Views
                 //trim each line of the text and remove empty lines
                 string[] lines = text.Split('\n');
                 string trimmed = "";
-                foreach (string line in lines) 
+                foreach (string line in lines)
                 {
                     string output = line.Trim();
                     if (output.Length > 0)
@@ -642,7 +667,7 @@ namespace UserInterface.Views
             try
             {
                 var gtkcolour = (sender as ColorButton).Rgba.ToColour().ToGdk();
-                var colour = Utility.Colour.FromGtk(gtkcolour);
+                var colour = Colour.FromGtk(gtkcolour);
                 Guid id = Guid.Parse((sender as ColorButton).Name);
                 var args = new PropertyChangedEventArgs(id, colour);
                 PropertyChanged?.Invoke(this, args);
@@ -812,8 +837,33 @@ namespace UserInterface.Views
             // whose changes are applied when it loses focus. Therefore,
             // grabbing focus on the main widget will cause any focused entries
             // to lose focus and fire off a changed event.
-            mainWidget.CanFocus = true;
-            mainWidget.GrabFocus();
+
+            // If one of the children has the focus then give the MainWidget the focus.
+            // Don't want to do this unless necessary because the user might be scrolling
+            // through the tree view (using the keyboard), looking at scripts and don't want
+            // the focus to swap to manager scripts when up and down array is pressed.
+            if (AllChildren(mainWidget as Container).Any(child => child.HasFocus))
+            {
+                mainWidget.CanFocus = true;
+                mainWidget.GrabFocus();
+            }
+        }
+
+        /// <summary>
+        /// Return all children recursively.
+        /// </summary>
+        /// <param name="parent">The parent widget</param>
+        public static IEnumerable<Widget> AllChildren(Container parent)
+        {
+            foreach (var child in parent.AllChildren)
+            {
+                if (child is Widget widget)
+                    yield return child as Widget;
+                if (child is Container container)
+                    foreach (var c in AllChildren(container))  // recursion.
+                        if (c is Widget w)
+                            yield return w;
+            }
         }
 
         /// <summary>

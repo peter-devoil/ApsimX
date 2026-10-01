@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using APSIM.Core;
 using Models.Core;
 using Models.PMF.Phen;
 
@@ -86,6 +87,8 @@ namespace Models.Functions
 
             startStageIndex = phenology.StartStagePhaseIndex(StartStageName);
             endStageIndex = phenology.EndStagePhaseIndex(EndStageName);
+
+            FunctionUtilities.ValidateFunctionChildren(Node);
         }
 
         /// <summary>Called by Plant.cs when phenology routines are complete.</summary>
@@ -94,7 +97,7 @@ namespace Models.Functions
         private void OnCalcEvent(object sender, EventArgs e)
         {
             if (childFunctions == null)
-                childFunctions = FindAllChildren<IFunction>().ToList();
+                childFunctions = Node.FindChildren<IFunction>().ToList();
 
             if (phenology.Between(startStageIndex, endStageIndex))
             {

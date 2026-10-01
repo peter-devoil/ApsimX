@@ -1,17 +1,14 @@
 ﻿using System;
-using System.Collections.Generic;
 using APSIM.Shared.Utilities;
 using Models.Core;
-using Models.Interfaces;
-using Models.Utilities;
 using Newtonsoft.Json;
 
 namespace Models.Soils
 {
     /// <summary>This class captures chemical soil data</summary>
     [Serializable]
-    [ViewName("ApsimNG.Resources.Glade.ProfileView.glade")]
-    [PresenterName("UserInterface.Presenters.ProfilePresenter")]
+    [ViewName("UserInterface.Views.QuadView")]
+    [PresenterName("UserInterface.Presenters.QuadPresenter")]
     [ValidParent(ParentType = typeof(Soil))]
     public class Chemical : Model
     {
@@ -78,41 +75,13 @@ namespace Models.Soils
         /// <summary>CL metadata</summary>
         public string[] CLMetadata { get; set; }
 
+        /// <summary>CEC metadata</summary>
+        public string[] CECMetadata { get; set; }
+
         /// <summary>ESP metadata</summary>
         public string[] ESPMetadata { get; set; }
 
         /// <summary>PH metadata</summary>
         public string[] PHMetadata { get; set; }
-
-        /// <summary>Get all solutes with standardised layer structure.</summary>
-        /// <returns></returns>
-        public static IEnumerable<Solute> GetStandardisedSolutes(Chemical chemical)
-        {
-            List<Solute> solutes = new List<Solute>();
-
-            // Add in child solutes.
-            foreach (Solute solute in chemical.Parent.FindAllChildren<Solute>())
-            {
-                if (MathUtilities.AreEqual(chemical.Thickness, solute.Thickness))
-                    solutes.Add(solute);
-                else
-                {
-                    Solute standardisedSolute = solute.Clone();
-                    if (standardisedSolute.Parent == null)
-                        standardisedSolute.Parent = solute.Parent;
-
-                    if (solute.InitialValuesUnits == Solute.UnitsEnum.kgha)
-                        standardisedSolute.InitialValues = SoilUtilities.MapMass(solute.InitialValues, solute.Thickness, chemical.Thickness, false);
-                    else
-                        standardisedSolute.InitialValues = SoilUtilities.MapConcentration(solute.InitialValues, solute.Thickness, chemical.Thickness, 1.0);
-                    standardisedSolute.Thickness = chemical.Thickness;
-                    solutes.Add(standardisedSolute);
-                }
-            }
-            return solutes;
-        }
-
-
-
     }
 }

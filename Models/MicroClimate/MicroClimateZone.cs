@@ -1,13 +1,12 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using APSIM.Shared.Utilities;
+using APSIM.Numerics;
 using Models.Core;
 using Models.Interfaces;
 
 namespace Models
 {
-
     /// <summary>
     /// A micro climate wrapper around a Zone instance.
     /// </summary>
@@ -47,6 +46,14 @@ namespace Models
 
         /// <summary>Latitude.</summary>
         private double Latitude;
+
+        /// <summary>The area of the Zone in m2 </summary>
+        /// Only != 1 if TreeRow radiation mode is used as it needs to adjust radiation interception for zone overlaps etc)
+        public double AreaM2 { get; set; } = 1.0;
+
+        /// <summary>The area of the Zone in m2 </summary>
+        /// Only != 1 if TreeRow radiation mode is used Canopy area can exceed zone area because of overlap)
+        public double SimulationAreaM2 { get; set; } = 1.0;
 
         /// <summary>The surface organic matter model.</summary>
         public ISurfaceOrganicMatter SurfaceOM { get; private set; }
@@ -114,6 +121,9 @@ namespace Models
         /// <summary>weights vpd towards vpd at maximum temperature</summary>
         private const double svp_fract = 0.66;
 
+        /// <summary>The radiation model used for partitioning light</summary>
+        public string RadiationModel { get; set; } = "BroadAcre";
+
         /// <summary>The Albedo of the combined soil-plant system for this zone</summary>
         public double Albedo;
 
@@ -127,7 +137,7 @@ namespace Models
         public double sumRs;
 
         /// <summary>The incoming rs</summary>
-        public double IncomingRs;
+        public double IncomingRs { get; set; }
 
         /// <summary>The shortwave radiation reaching the surface</summary>
         public double SurfaceRs;
@@ -153,7 +163,6 @@ namespace Models
         /// <summary>The height difference between canopies required for a new layer to be created (m).</summary>
         public double MinimumHeightDiffForNewLayer { get; set; }
 
-
         /// <summary>Gets or sets the component data.</summary>
         public List<MicroClimateCanopy> Canopies = new List<MicroClimateCanopy>();
 
@@ -166,10 +175,16 @@ namespace Models
             clock = clockModel;
             Zone = zoneModel;
             MinimumHeightDiffForNewLayer = minHeightDiffForNewLayer;
-            canopyModels = Zone.FindAllDescendants<ICanopy>().ToList();
-            modelsThatHaveCanopies = Zone.FindAllDescendants<IHaveCanopy>().ToList();
-            SoilWater = Zone.FindInScope<ISoilWater>();
-            SurfaceOM = Zone.FindInScope<ISurfaceOrganicMatter>();
+            canopyModels = zoneModel.Node.FindChildren<ICanopy>(relativeTo: Zone, recurse: true).ToList();
+            modelsThatHaveCanopies = zoneModel.Node.FindChildren<IHaveCanopy>(relativeTo: Zone, recurse: true).ToList();
+            SoilWater = zoneModel.Node.Find<ISoilWater>(relativeTo: Zone);
+            SurfaceOM = zoneModel.Node.Find<ISurfaceOrganicMatter>(relativeTo: Zone);
+        }
+
+        /// <summary>Constructor. for blank zone</summary>
+        public MicroClimateZone(Zone zoneModel)
+        {
+            Zone = zoneModel;
         }
 
         /// <summary>The zone model.</summary>
@@ -283,6 +298,8 @@ namespace Models
             Latitude = weatherModel.Latitude;
             Wind = weatherModel.Wind;
 
+
+
             Albedo = 0;
             Emissivity = 0;
             NetLongWaveRadiation = 0;
@@ -303,7 +320,7 @@ namespace Models
             // There are two ways to finding canopies in the simulation.
             // 1. Some models ARE canopies e.g. Leaf, SimpleLeaf.
             foreach (ICanopy canopy in canopyModels)
-                if (canopy.Height > 0)
+                if (MathUtilities.IsGreaterThan(canopy.Height, 0))
                     Canopies.Add(new MicroClimateCanopy(canopy));
 
             // 2. Some models HAVE canopies e.g. SurfaceOM.
@@ -323,20 +340,40 @@ namespace Models
         /// <param name="soilAlbedo">Soil albedo.</param>
         public void CalculateEnergyTerms(double soilAlbedo)
         {
+            for (int i = numLayers - 1; i >= 0; i += -1)
+            {
+                for (int j = 0; j <= Canopies.Count - 1; j++)
+                {
+                    Canopies[j].FRs[i] = Math.Min(1.0,MathUtilities.Divide(Canopies[j].Rs[i], Radn, 0.0));
+                }
+            }
+
             sumRs = 0.0;
             Albedo = 0.0;
             Emissivity = 0.0;
 
             for (int i = numLayers - 1; i >= 0; i += -1)
+            {
                 for (int j = 0; j <= Canopies.Count - 1; j++)
                 {
-                    Albedo += MathUtilities.Divide(Canopies[j].Rs[i], Radn, 0.0) * Canopies[j].Canopy.Albedo;
-                    Emissivity += MathUtilities.Divide(Canopies[j].Rs[i], Radn, 0.0) * canopyEmissivity;
+                    Albedo += Canopies[j].FRs[i] * Canopies[j].Canopy.Albedo;
+                    Emissivity += Canopies[j].FRs[i] * canopyEmissivity;
                     sumRs += Canopies[j].Rs[i];
                 }
+            }
 
-            Albedo += (1.0 - MathUtilities.Divide(sumRs, Radn, 0.0)) * soilAlbedo;
-            Emissivity += (1.0 - MathUtilities.Divide(sumRs, Radn, 0.0)) * soilEmissivity;
+            if (RadiationModel != "TreeRow")
+            {
+                Albedo += (1.0 - MathUtilities.Divide(sumRs, Radn, 0.0)) * soilAlbedo;
+                Emissivity += (1.0 - MathUtilities.Divide(sumRs, Radn, 0.0)) * soilEmissivity;
+            }
+            else
+            {
+                Albedo += MathUtilities.Divide(SurfaceRs, Radn, 0.0) * soilAlbedo;
+                Emissivity += MathUtilities.Divide(SurfaceRs, Radn, 0.0) * soilEmissivity;
+            }
+            //if((Albedo <0)||(Albedo>1))
+            //    throw new Exception("Bad Albedo");
         }
 
         /// <summary>
@@ -355,7 +392,7 @@ namespace Models
             // ====================================================
             for (int i = numLayers - 1; i >= 0; i += -1)
                 for (int j = 0; j <= Canopies.Count - 1; j++)
-                    Canopies[j].Rl[i] = MathUtilities.Divide(Canopies[j].Rs[i], Radn, 0.0) * NetLongWaveRadiation;
+                    Canopies[j].Rl[i] = Canopies[j].FRs[i] * NetLongWaveRadiation;
         }
 
         /// <summary>
@@ -371,7 +408,7 @@ namespace Models
             // ====================================================
             for (int i = numLayers - 1; i >= 0; i += -1)
                 for (int j = 0; j <= Canopies.Count - 1; j++)
-                    Canopies[j].Rsoil[i] = MathUtilities.Divide(Canopies[j].Rs[i], Radn, 0.0) * SoilHeatFlux;
+                    Canopies[j].Rsoil[i] = Canopies[j].FRs[i] * SoilHeatFlux;
         }
 
         /// <summary>Calculate the canopy conductance for system compartments</summary>
@@ -489,18 +526,40 @@ namespace Models
         /// <summary>Send an energy balance event</summary>
         public void SetCanopyEnergyTerms()
         {
+            //calculate the total green/dead for the canopy first, as AgPasture needs to know this
+            double totalGreen = 0;
+            double totalDead = 0;
             for (int j = 0; j <= Canopies.Count - 1; j++)
+            {
+                if (Canopies[j].Canopy != null)
+                {
+                    for (int i = 0; i <= numLayers - 1; i++)
+                    {
+                        totalGreen += CalculateCanpoyEnergy(Canopies[j].Rs[i], SimulationAreaM2, RadnGreenFraction(j));
+                        totalDead += CalculateCanpoyEnergy(Canopies[j].Rs[i], SimulationAreaM2, 1 - RadnGreenFraction(j));
+                    }
+                }
+            }
+
+            for (int j = 0; j <= Canopies.Count - 1; j++)
+            {
                 if (Canopies[j].Canopy != null)
                 {
                     CanopyEnergyBalanceInterceptionlayerType[] lightProfile = new CanopyEnergyBalanceInterceptionlayerType[numLayers];
+                    double totalPETa = 0;
+                    double totalPETr = 0;
                     double totalPotentialEp = 0;
                     double totalInterception = 0.0;
                     for (int i = 0; i <= numLayers - 1; i++)
                     {
                         lightProfile[i] = new CanopyEnergyBalanceInterceptionlayerType();
                         lightProfile[i].thickness = DeltaZ[i];
-                        lightProfile[i].AmountOnGreen = Canopies[j].Rs[i] * RadnGreenFraction(j);
-                        lightProfile[i].AmountOnDead = Canopies[j].Rs[i] * (1 - RadnGreenFraction(j));
+                        lightProfile[i].AmountOnGreen = CalculateCanpoyEnergy(Canopies[j].Rs[i], SimulationAreaM2, RadnGreenFraction(j));
+                        lightProfile[i].AmountOnDead = CalculateCanpoyEnergy(Canopies[j].Rs[i], SimulationAreaM2, 1 - RadnGreenFraction(j));
+                        lightProfile[i].AmountOnGreenTotal = totalGreen;
+                        lightProfile[i].AmountOnDeadTotal = totalDead;
+                        totalPETa += Canopies[j].PETa[i];
+                        totalPETr += Canopies[j].PETr[i];
                         totalPotentialEp += Canopies[j].PET[i];
                         totalInterception += Canopies[j].interception[i];
                     }
@@ -508,6 +567,13 @@ namespace Models
                     Canopies[j].Canopy.WaterDemand = totalPotentialEp;
                     Canopies[j].Canopy.LightProfile = lightProfile;
                 }
+            }
+        }
+
+        /// <summary>AmountOnGreen and AmountOnDead Calucation for SetCanopyEnergyTerms</summary>
+        private double CalculateCanpoyEnergy(double Rs, double area, double radiation)
+        {
+            return Rs * area * radiation;
         }
 
         /// <summary>Break the combined Canopy into layers</summary>
@@ -547,6 +613,7 @@ namespace Models
                     Array.Resize<double>(ref Canopies[j].Ftot, numLayers);
                     Array.Resize<double>(ref Canopies[j].Fgreen, numLayers);
                     Array.Resize<double>(ref Canopies[j].Rs, numLayers);
+                    Array.Resize<double>(ref Canopies[j].FRs, numLayers);
                     Array.Resize<double>(ref Canopies[j].Rl, numLayers);
                     Array.Resize<double>(ref Canopies[j].Rsoil, numLayers);
                     Array.Resize<double>(ref Canopies[j].Gc, numLayers);

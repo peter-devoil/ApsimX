@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using APSIM.Core;
 using Models.Core;
 
 namespace Models.Functions
@@ -14,11 +15,17 @@ namespace Models.Functions
         /// <summary>The child functions</summary>
         private IEnumerable<IFunction> ChildFunctions;
 
+        [EventSubscribe("StartOfSimulation")]
+        private void OnStartOfSimulation(object sender, EventArgs e)
+        {
+            FunctionUtilities.ValidateFunctionChildren(Node);
+        }
+
         /// <summary>Gets the value.</summary>
         public double Value(int arrayIndex = -1)
         {
             if (ChildFunctions == null)
-                ChildFunctions = FindAllChildren<IFunction>().ToList();
+                ChildFunctions = Node.FindChildren<IFunction>().ToList();
 
             double returnValue = 0.0;
 

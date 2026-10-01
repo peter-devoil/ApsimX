@@ -23,11 +23,11 @@ namespace APSIM.Documentation.Models.Types
         {
             Section section = GetSummaryAndRemarksSection(model);
 
-            IOrgan parentOrgan = model.FindAncestor<IOrgan>();
+            IOrgan parentOrgan = model.Node.FindParent<IOrgan>(recurse: true);
             if (parentOrgan != null)
             {
                 string organName = parentOrgan.Name;
-                section.Add(new Paragraph($"*{model.Name} = [{organName}].maximumNconc × ([{organName}].Live.Wt + potentialAllocationWt) - [{organName}].Live.N*"));
+                section.Add(new Paragraph($"*{model.Name} = [{organName}].maximumNConc × ([{organName}].Live.Wt + potentialAllocationWt) - [{organName}].Live.N*"));
                 section.Add(new Paragraph($"The demand for storage N is further reduced by a factor specified by the [{organName}].NitrogenDemandSwitch."));
             }
 

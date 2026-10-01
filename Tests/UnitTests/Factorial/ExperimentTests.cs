@@ -6,8 +6,8 @@ using System;
 using System.Collections.Generic;
 using UnitTests.Weather;
 using APSIM.Shared.Utilities;
-using Models.Core.ApsimFile;
 using Models;
+using APSIM.Core;
 
 namespace UnitTests.Factorial
 {
@@ -50,7 +50,7 @@ namespace UnitTests.Factorial
                     }
                 }
             };
-            experiment.ParentAllDescendants();
+            var tree = Node.Create(experiment);
 
             var sims = experiment.GenerateSimulationDescriptions();
             Assert.That(sims.Count, Is.EqualTo(2));
@@ -101,7 +101,7 @@ namespace UnitTests.Factorial
                     }
                 }
             };
-            experiment.ParentAllDescendants();
+            var tree = Node.Create(experiment);
 
             var sims = experiment.GenerateSimulationDescriptions();
             Assert.That(sims[0].Descriptors.Find(d => d.Name == "Experiment").Value, Is.EqualTo("Exp1"));
@@ -115,7 +115,7 @@ namespace UnitTests.Factorial
             Assert.That(weather.MaxT, Is.EqualTo(15));
 
             Assert.That(sims[2].Descriptors.Find(d => d.Name == "Experiment").Value, Is.EqualTo("Exp1"));
-            Assert.That(sims[2].Descriptors.Find(d => d.Name == "MaxT").Value, Is.EqualTo("20"));   
+            Assert.That(sims[2].Descriptors.Find(d => d.Name == "MaxT").Value, Is.EqualTo("20"));
             weather = sims[2].ToSimulation().Children[0] as MockWeather;
             Assert.That(weather.MaxT, Is.EqualTo(20));
 
@@ -172,7 +172,7 @@ namespace UnitTests.Factorial
                     }
                 }
             };
-            experiment.ParentAllDescendants();
+            var tree = Node.Create(experiment);
 
             var sims = experiment.GenerateSimulationDescriptions();
             Assert.That(sims[0].Descriptors.Find(d => d.Name == "Experiment").Value, Is.EqualTo("Exp1"));
@@ -214,7 +214,7 @@ namespace UnitTests.Factorial
                             {
                                 Name = "Clock",
                                 NumberOfTicks = 1,
-                                Today = DateTime.MinValue 
+                                Today = DateTime.MinValue
                             },
                             new MockSummary()
                         }
@@ -226,22 +226,22 @@ namespace UnitTests.Factorial
                             new CompositeFactor()
                             {
                                 Name = "Factor1",
-                                Specifications = new List<string>() { "[Weather].MaxT = 10",
-                                                                        "[Weather].MinT = 20",
-                                                                        "[Clock].NumberOfTicks = 10"},
+                                Specifications = ["[Weather].MaxT = 10",
+                                                  "[Weather].MinT = 20",
+                                                  "[Clock].NumberOfTicks = 10"],
                             },
                             new CompositeFactor()
                             {
                                 Name = "Factor2",
-                                Specifications = new List<string>() { "[Weather].MaxT = 100",
-                                                                        "[Weather].MinT = 200",
-                                                                        "[Clock].NumberOfTicks = 100"},
+                                Specifications = ["[Weather].MaxT = 100",
+                                                  "[Weather].MinT = 200",
+                                                  "[Clock].NumberOfTicks = 100"],
                             }
                         }
                     }
                 }
             };
-            experiment.ParentAllDescendants();
+            var tree = Node.Create(experiment);
 
             var sims = experiment.GenerateSimulationDescriptions();
             Assert.That(sims[0].Name, Is.EqualTo("Exp1Factor1"));
@@ -306,9 +306,9 @@ namespace UnitTests.Factorial
                                     new CompositeFactor()
                                     {
                                         Name = "Goondiwindi",
-                                        Specifications = new List<string>() { "[Weather].MaxT = 10",
-                                                                              "[Weather].MinT = 20",
-                                                                              "[Clock]"},
+                                        Specifications = ["[Weather].MaxT = 10",
+                                                          "[Weather].MinT = 20",
+                                                          "[Clock]"],
                                         Children = new List<IModel>()
                                         {
                                             new MockClock()
@@ -322,9 +322,9 @@ namespace UnitTests.Factorial
                                     new CompositeFactor()
                                     {
                                         Name = "Toowoomba",
-                                        Specifications = new List<string>() { "[Weather].MaxT = 100",
-                                                                              "[Weather].MinT = 200",
-                                                                              "[Clock]"},
+                                        Specifications = ["[Weather].MaxT = 100",
+                                                          "[Weather].MinT = 200",
+                                                          "[Clock]"],
                                         Children = new List<IModel>()
                                         {
                                             new MockClock()
@@ -341,7 +341,7 @@ namespace UnitTests.Factorial
                     }
                 }
             };
-            experiment.ParentAllDescendants();
+            var tree = Node.Create(experiment);
 
             var sims = experiment.GenerateSimulationDescriptions();
             Assert.That(sims[0].Name, Is.EqualTo("Exp1SiteGoondiwindi"));
@@ -407,7 +407,7 @@ namespace UnitTests.Factorial
                                     new CompositeFactor()
                                     {
                                         Name = "Place",
-                                        Specifications = new List<string>() {"[Clock]"},
+                                        Specifications = ["[Clock]"],
                                         Children = new List<IModel>()
                                         {
                                             new MockClock()
@@ -429,7 +429,7 @@ namespace UnitTests.Factorial
                     }
                 }
             };
-            experiment.ParentAllDescendants();
+            var tree = Node.Create(experiment);
 
             var sims = experiment.GenerateSimulationDescriptions();
             Assert.That(sims[0].Name, Is.EqualTo("Exp1SitePlace"));
@@ -493,8 +493,7 @@ namespace UnitTests.Factorial
                                     new CompositeFactor()
                                     {
                                         Name = "1",
-                                        Specifications = new List<string>() { "[Sowing]",
-                                                                              "[Cutting]"},
+                                        Specifications = ["[Sowing]","[Cutting]"],
                                         Children = new List<IModel>()
                                         {
                                             new Models.Operations()
@@ -528,7 +527,7 @@ namespace UnitTests.Factorial
                     }
                 }
             };
-            experiment.ParentAllDescendants();
+            var tree = Node.Create(experiment);
 
             var sims = experiment.GenerateSimulationDescriptions();
             Assert.That(sims[0].Name, Is.EqualTo("Exp1Site1"));
@@ -579,7 +578,7 @@ namespace UnitTests.Factorial
                     }
                 }
             };
-            experiment.ParentAllDescendants();
+            var tree = Node.Create(experiment);
 
             experiment.DisabledSimNames = new List<string>() { "Exp1MaxT10", "Exp1StartDate2003-11-01" };
 
@@ -647,7 +646,7 @@ namespace UnitTests.Factorial
                     }
                 }
             };
-            experiment.ParentAllDescendants();
+            var tree = Node.Create(experiment);
 
             var sims = experiment.GenerateSimulationDescriptions();
             Assert.That(sims.Count, Is.EqualTo(4));
@@ -674,7 +673,7 @@ namespace UnitTests.Factorial
 
             Assert.That(sims[2].Name, Is.EqualTo("Exp1Weather1Mod4"));
             Assert.That(sims[2].Descriptors.Find(d => d.Name == "Experiment").Value, Is.EqualTo("Exp1"));
-            Assert.That(sims[2].Descriptors.Find(d => d.Name == "Weather").Value, Is.EqualTo("1")); 
+            Assert.That(sims[2].Descriptors.Find(d => d.Name == "Weather").Value, Is.EqualTo("1"));
             Assert.That(sims[2].Descriptors.Find(d => d.Name == "Mod").Value, Is.EqualTo("4"));
             sim = sims[2].ToSimulation();
             weather = sim.Children[0] as MockWeather;
@@ -724,6 +723,7 @@ namespace UnitTests.Factorial
                         {
                             new Permutation()
                             {
+                                Name = "T1",
                                 Children = new List<IModel>()
                                 {
                                     new Factor()
@@ -740,6 +740,7 @@ namespace UnitTests.Factorial
                             },
                             new Permutation()
                             {
+                                Name = "T2",
                                 Children = new List<IModel>()
                                 {
                                     new Factor()
@@ -758,12 +759,12 @@ namespace UnitTests.Factorial
                     }
                 }
             };
-            experiment.ParentAllDescendants();
+            var tree = Node.Create(experiment);
 
             var sims = experiment.GenerateSimulationDescriptions();
             Assert.That(sims.Count, Is.EqualTo(8));
 
-            Assert.That(sims[0].Name, Is.EqualTo("Exp1Irr0Fert0"));
+            Assert.That(sims[0].Name, Is.EqualTo("Exp1T1Irr0Fert0"));
             Assert.That(sims[0].Descriptors.Find(d => d.Name == "Experiment").Value, Is.EqualTo("Exp1"));
             Assert.That(sims[0].Descriptors.Find(d => d.Name == "Irr").Value, Is.EqualTo("0"));
             Assert.That(sims[0].Descriptors.Find(d => d.Name == "Fert").Value, Is.EqualTo("0"));
@@ -773,7 +774,7 @@ namespace UnitTests.Factorial
             Assert.That(irr.Amount, Is.EqualTo(0));
             Assert.That(fert.Amount, Is.EqualTo(0));
 
-            Assert.That(sims[1].Name, Is.EqualTo("Exp1Irr50Fert0"));
+            Assert.That(sims[1].Name, Is.EqualTo("Exp1T1Irr50Fert0"));
             Assert.That(sims[1].Descriptors.Find(d => d.Name == "Experiment").Value, Is.EqualTo("Exp1"));
             Assert.That(sims[1].Descriptors.Find(d => d.Name == "Irr").Value, Is.EqualTo("50"));
             Assert.That(sims[1].Descriptors.Find(d => d.Name == "Fert").Value, Is.EqualTo("0"));
@@ -783,7 +784,7 @@ namespace UnitTests.Factorial
             Assert.That(irr.Amount, Is.EqualTo(50));
             Assert.That(fert.Amount, Is.EqualTo(0));
 
-            Assert.That(sims[2].Name, Is.EqualTo("Exp1Irr0Fert100"));
+            Assert.That(sims[2].Name, Is.EqualTo("Exp1T1Irr0Fert100"));
             Assert.That(sims[2].Descriptors.Find(d => d.Name == "Experiment").Value, Is.EqualTo("Exp1"));
             Assert.That(sims[2].Descriptors.Find(d => d.Name == "Irr").Value, Is.EqualTo("0"));
             Assert.That(sims[2].Descriptors.Find(d => d.Name == "Fert").Value, Is.EqualTo("100"));
@@ -793,7 +794,7 @@ namespace UnitTests.Factorial
             Assert.That(irr.Amount, Is.EqualTo(0));
             Assert.That(fert.Amount, Is.EqualTo(100));
 
-            Assert.That(sims[3].Name, Is.EqualTo("Exp1Irr50Fert100"));
+            Assert.That(sims[3].Name, Is.EqualTo("Exp1T1Irr50Fert100"));
             Assert.That(sims[3].Descriptors.Find(d => d.Name == "Experiment").Value, Is.EqualTo("Exp1"));
             Assert.That(sims[3].Descriptors.Find(d => d.Name == "Irr").Value, Is.EqualTo("50"));
             Assert.That(sims[3].Descriptors.Find(d => d.Name == "Fert").Value, Is.EqualTo("100"));
@@ -803,7 +804,7 @@ namespace UnitTests.Factorial
             Assert.That(irr.Amount, Is.EqualTo(50));
             Assert.That(fert.Amount, Is.EqualTo(100));
 
-            Assert.That(sims[4].Name, Is.EqualTo("Exp1Irr100Fert0"));
+            Assert.That(sims[4].Name, Is.EqualTo("Exp1T2Irr100Fert0"));
             Assert.That(sims[4].Descriptors.Find(d => d.Name == "Experiment").Value, Is.EqualTo("Exp1"));
             Assert.That(sims[4].Descriptors.Find(d => d.Name == "Irr").Value, Is.EqualTo("100"));
             Assert.That(sims[4].Descriptors.Find(d => d.Name == "Fert").Value, Is.EqualTo("0"));
@@ -813,7 +814,7 @@ namespace UnitTests.Factorial
             Assert.That(irr.Amount, Is.EqualTo(100));
             Assert.That(fert.Amount, Is.EqualTo(0));
 
-            Assert.That(sims[5].Name, Is.EqualTo("Exp1Irr150Fert0"));
+            Assert.That(sims[5].Name, Is.EqualTo("Exp1T2Irr150Fert0"));
             Assert.That(sims[5].Descriptors.Find(d => d.Name == "Experiment").Value, Is.EqualTo("Exp1"));
             Assert.That(sims[5].Descriptors.Find(d => d.Name == "Irr").Value, Is.EqualTo("150"));
             Assert.That(sims[5].Descriptors.Find(d => d.Name == "Fert").Value, Is.EqualTo("0"));
@@ -823,7 +824,7 @@ namespace UnitTests.Factorial
             Assert.That(irr.Amount, Is.EqualTo(150));
             Assert.That(fert.Amount, Is.EqualTo(0));
 
-            Assert.That(sims[6].Name, Is.EqualTo("Exp1Irr100Fert20"));
+            Assert.That(sims[6].Name, Is.EqualTo("Exp1T2Irr100Fert20"));
             Assert.That(sims[6].Descriptors.Find(d => d.Name == "Experiment").Value, Is.EqualTo("Exp1"));
             Assert.That(sims[6].Descriptors.Find(d => d.Name == "Irr").Value, Is.EqualTo("100"));
             Assert.That(sims[6].Descriptors.Find(d => d.Name == "Fert").Value, Is.EqualTo("20"));
@@ -833,7 +834,7 @@ namespace UnitTests.Factorial
             Assert.That(irr.Amount, Is.EqualTo(100));
             Assert.That(fert.Amount, Is.EqualTo(20));
 
-            Assert.That(sims[7].Name, Is.EqualTo("Exp1Irr150Fert20"));
+            Assert.That(sims[7].Name, Is.EqualTo("Exp1T2Irr150Fert20"));
             Assert.That(sims[7].Descriptors.Find(d => d.Name == "Experiment").Value, Is.EqualTo("Exp1"));
             Assert.That(sims[7].Descriptors.Find(d => d.Name == "Irr").Value, Is.EqualTo("150"));
             Assert.That(sims[7].Descriptors.Find(d => d.Name == "Fert").Value, Is.EqualTo("20"));
@@ -852,7 +853,7 @@ namespace UnitTests.Factorial
         public void TestOverridingInMultiplePaddocks()
         {
             string json = ReflectionUtilities.GetResourceAsString("UnitTests.Factorial.MultiPaddockFactorOverride.apsimx");
-            Simulations sims = FileFormat.ReadFromString<Simulations>(json, e => throw e, false).NewModel as Simulations;
+            Simulations sims = FileFormat.ReadFromString<Simulations>(json).Model as Simulations;
 
             Runner runner = new Runner(sims);
             List<Exception> errors = runner.Run();
@@ -900,12 +901,12 @@ namespace UnitTests.Factorial
                                     new CompositeFactor()
                                     {
                                         Name = "Mod1",
-                                        Specifications = new List<string>() { "[Mod].A=3" },
+                                        Specifications = ["[Mod].A=3"],
                                     },
                                     new CompositeFactor()
                                     {
                                         Name = "Mod2",
-                                        Specifications = new List<string>() { "[Mod].A=4" },
+                                        Specifications = ["[Mod].A=4"],
                                     }
                                 }
                             }
@@ -913,7 +914,7 @@ namespace UnitTests.Factorial
                     }
                 }
             };
-            experiment.ParentAllDescendants();
+            var tree = Node.Create(experiment);
 
             var sims = experiment.GenerateSimulationDescriptions();
             Assert.That(sims.Count, Is.EqualTo(4));
@@ -960,5 +961,132 @@ namespace UnitTests.Factorial
 
         }
 
+        /// <summary>Ensure a property set overrides work.</summary>
+        [Test]
+        public void EnsureCommentingPropertyWorks()
+        {
+            var experiment = new Experiment()
+            {
+                Name = "Exp1",
+                Children = new List<IModel>()
+                {
+                    new Simulation()
+                    {
+                        Name = "BaseSimulation",
+                        Children = new List<IModel>()
+                        {
+                            new MockWeather()
+                            {
+                                Name = "Weather",
+                                MaxT = 1,
+                                StartDate = DateTime.MinValue
+                            },
+                        }
+                    },
+                    new Factors()
+                    {
+                        Children = new List<IModel>()
+                        {
+                            new CompositeFactor()
+                            {
+                                Name = "MaxT",
+                                Specifications = [
+                                    "//[Weather].MaxT = 10",
+                                    "[Weather].MaxT = 20"
+                                ]
+                            },
+                        }
+                    }
+                }
+            };
+            var tree = Node.Create(experiment);
+
+            var sims = experiment.GenerateSimulationDescriptions();
+            Assert.That(sims.Count, Is.EqualTo(1));
+
+            Assert.That(sims[0].Descriptors.Find(d => d.Name == "Experiment").Value, Is.EqualTo("Exp1"));
+            var weather = sims[0].ToSimulation().Children[0] as MockWeather;
+            Assert.That(weather.MaxT, Is.EqualTo(20));
+        }
+
+        /// <summary>Ensure composite that has a memo as a child still works and the Memo should not overwrite an existing Memo in the simulation.</summary>
+        [Test]
+        public void EnsureCompositeWithCustomDescriptorsWorks()
+        {
+            var experiment = new Experiment()
+            {
+                Name = "Exp1",
+                Children = new List<IModel>()
+                {
+                    new Simulation()
+                    {
+                        Name = "BaseSimulation",
+                        Children = new List<IModel>()
+                        {
+                            new MockClock()
+                            {
+                                Name = "Clock",
+                                NumberOfTicks = 1,
+                                Today = DateTime.MinValue
+                            },
+                            new MockSummary()
+                        }
+                    },
+                    new Factors()
+                    {
+                        Children = new List<IModel>()
+                        {
+                            new Factor()
+                            {
+                                Name = "Site",
+                                Children = new List<IModel>()
+                                {
+                                    new CompositeFactor()
+                                    {
+                                        Name = "Place",
+                                        Specifications = ["[Clock]"],
+                                        CustomDescriptors = [new SimulationDescriptor("Custom", "SomeText")],
+                                        Children = new List<IModel>()
+                                        {
+                                            new MockClock()
+                                            {
+                                                Name = "Clock",
+                                                NumberOfTicks = 10,
+                                                Today = DateTime.MinValue
+                                            }
+                                        }
+                                    },
+                                    new CompositeFactor()
+                                    {
+                                        Name = "PlaceTwo",
+                                        Specifications = ["[Clock]"],
+                                        Children = new List<IModel>()
+                                        {
+                                            new MockClock()
+                                            {
+                                                Name = "Clock",
+                                                NumberOfTicks = 10,
+                                                Today = DateTime.MinValue
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            };
+            var tree = Node.Create(experiment);
+
+            var sims = experiment.GenerateSimulationDescriptions();
+            Assert.That(sims[0].Name, Is.EqualTo("Exp1SitePlace"));
+            Assert.That(sims[0].Descriptors.Find(d => d.Name == "Experiment").Value, Is.EqualTo("Exp1"));
+            Assert.That(sims[0].Descriptors.Find(d => d.Name == "Custom").Value, Is.EqualTo("SomeText"));
+            Assert.That(sims[0].Descriptors.Find(d => d.Name == "Site").Value, Is.EqualTo("Place"));
+            Assert.That(sims[1].Name, Is.EqualTo("Exp1SitePlaceTwo"));
+            Assert.That(sims[1].Descriptors.Find(d => d.Name == "Experiment").Value, Is.EqualTo("Exp1"));
+            Assert.That(sims[1].Descriptors.Find(d => d.Name == "Custom"), Is.Null);
+            Assert.That(sims[1].Descriptors.Find(d => d.Name == "Site").Value, Is.EqualTo("PlaceTwo"));
+        }
     }
 }

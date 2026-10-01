@@ -3,10 +3,11 @@ using System.Collections.Generic;
 using System.Data;
 using System.IO;
 using System.Linq;
-using System.Reflection;
-using System.Text.RegularExpressions;
-using System.Xml.Linq;
+using APSIM.Documentation.Models.Types;
 using APSIM.Shared.Documentation;
+using Models.Core;
+using Models.PMF;
+using Models.PMF.Phen;
 using DocumentationGraphPage = APSIM.Shared.Documentation.GraphPage;
 
 namespace APSIM.Documentation;
@@ -118,6 +119,11 @@ public static class DocumentationUtilities
     public static List<ITag> AddHeader(string title, List<ITag> tags) {
 
         List<ITag> newTags = new List<ITag>();
+        if (tags.Count == 0)
+        {
+            return tags;
+        }
+        
         ITag first = tags.First();
         
         if (tags.First().GetType() == typeof(Paragraph))
@@ -127,6 +133,11 @@ public static class DocumentationUtilities
             newTags.AddRange(tags);
             return newTags;
         }
+        else if (tags.First().GetType() == typeof(Section))
+        {
+            (first as Section).Title = title;
+            return tags;
+        }
         else
         {
             return tags;
@@ -134,129 +145,79 @@ public static class DocumentationUtilities
     }
 
     /// <summary>
-    /// Get the summary of a member (field, property)
+    /// Gets the name of the documentation based on the provided model, with rules for Simulations and models
     /// </summary>
-    /// <param name="member">The member to get the summary for.</param>
-    public static string GetSummary(MemberInfo member)
-    {
-        var fullName = member.ReflectedType + "." + member.Name;
-        if (member is PropertyInfo)
-            return GetSummary(fullName, 'P');
-        else if (member is FieldInfo)
-            return GetSummary(fullName, 'F');
-        else if (member is EventInfo)
-            return GetSummary(fullName, 'E');
-        else if (member is MethodInfo method)
-        {
-            string args = string.Join(",", method.GetParameters().Select(p => p.ParameterType.FullName));
-            args = args.Replace("+", ".");
-            return GetSummary($"{fullName}({args})", 'M');
-        }
-        else
-            throw new ArgumentException($"Unknown argument type {member.GetType().Name}");
-    }
-
-    /// <summary>
-    /// Get the summary of a type removing CRLF.
-    /// </summary>
-    /// <param name="t">The type to get the summary for.</param>
-    public static string GetSummary(Type t)
-    {
-        return GetSummary(t.FullName, 'T');
-    }
-
-    /// <summary>
-    /// Get the summary of a type without removing CRLF.
-    /// </summary>
-    /// <param name="t">The type to get the summary for.</param>
-    public static string GetSummaryRaw(Type t)
-    {
-        return GetSummaryRaw(t.FullName, 'T');
-    }
-
-    /// <summary>
-    /// Get the remarks tag of a type (if it exists).
-    /// </summary>
-    /// <param name="t">The type.</param>
-    public static string GetRemarks(Type t)
-    {
-        return GetRemarks(t.FullName, 'T');
-    }
-
-    /// <summary>
-    /// Get the remarks of a member (field, property) if it exists.
-    /// </summary>
-    /// <param name="member">The member.</param>
-    public static string GetRemarks(MemberInfo member)
-    {
-        var fullName = member.ReflectedType + "." + member.Name;
-        if (member is PropertyInfo)
-            return GetRemarks(fullName, 'P');
-        else if (member is FieldInfo)
-            return GetRemarks(fullName, 'F');
-        else if (member is EventInfo)
-            return GetRemarks(fullName, 'E');
-        else if (member is MethodInfo method)
-        {
-            string args = string.Join(",", method.GetParameters().Select(p => p.ParameterType.FullName));
-            args = args.Replace("+", ".");
-            return GetRemarks($"{fullName}({args})", 'M');
-        }
-        else
-            throw new ArgumentException($"Unknown argument type {member.GetType().Name}");
-    }
-
-    /// <summary>
-    /// Get the summary of a member (class, field, property)
-    /// </summary>
-    /// <param name="path">The path to the member.</param>
-    /// <param name="typeLetter">Type type letter: 'T' for type, 'F' for field, 'P' for property.</param>
-    private static string GetSummary(string path, char typeLetter)
-    {
-        var rawSummary = GetSummaryRaw(path, typeLetter);
-        if (rawSummary != null)
-        {
-            // Need to fix multiline comments - remove newlines and consecutive spaces.
-            return Regex.Replace(rawSummary, @"\n[ \t]+", "\n");
-        }
-        return null;
-    }
-
-    /// <summary>
-    /// Get the summary of a member (class, field, property)
-    /// </summary>
-    /// <param name="path">The path to the member.</param>
-    /// <param name="typeLetter">Type type letter: 'T' for type, 'F' for field, 'P' for property.</param>
-    private static string GetSummaryRaw(string path, char typeLetter)
-    {
-        if (string.IsNullOrEmpty(path))
-            return path;
-
-        path = path.Replace("+", ".");
-
-        //if (summaries.TryGetValue($"{typeLetter}:{path}", out var summary))
-        //    return summary;
-        return null;
-    }
-
-    /// <summary>
-    /// Get the remarks of a member (class, field, property).
-    /// </summary>
-    /// <param name="path">The path to the member.</param>
-    /// <param name="typeLetter">Type letter: 'T' for type, 'F' for field, 'P' for property.</param>
+    /// <param name="model"></param>
     /// <returns></returns>
-    private static string GetRemarks(string path, char typeLetter)
+    public static string GetDocumentationName(IModel model) {
+
+        if (model is Plant)
+            return model.Name;
+        else if (model is Simulations)
+        {
+            return DocSimulations.GetSimulationsName(model as Simulations);
+        }
+        else 
+        {
+            string name = model.Name;
+            if (model.Name != model.GetType().Name)
+                name = $"{model.Name} ({model.GetType().Name})";
+            return name;
+        }
+    }
+
+    /// <summary>
+    /// Given a type, returns a string of the file path instead of the namespace.
+    /// This is only a temporary patch until namespaces can be fixed, and more fixes will need to be added as required.
+    /// </summary>
+    public static string GetFilepathOfNamespace(Type type)
     {
-        if (string.IsNullOrEmpty(path))
-            return path;
+        string path = type.ToString();
+        path = path.Replace("Models.PMF.Phen.", "Models.PMF.Phenology.");
 
-        path = path.Replace("+", ".");
+        if (path.StartsWith("Models.PMF.") && path.EndsWith("Arbitrator"))
+            path = path.Replace("Models.PMF.", "Models.PMF.Arbitrator.");
 
-        //if (remarks.TryGetValue($"{typeLetter}:{path}", out var remark))
-        //{
-            // Need to fix multiline remarks - trim newlines and consecutive spaces.
-        //    return Regex.Replace(remark, @"\n\s+", "\n");
-        //}
-        return null;
+        if (path.StartsWith("Models.PMF.") && path.EndsWith("Phase"))
+            path = path.Replace("Models.PMF.Phenology.", "Models.PMF.Phenology.Phases.");
+
+        return path;
+    }
+
+    /// <summary>
+    /// Creates a markdown link for a model to connect it to its github page
+    /// </summary>
+    public static string GetGithubMarkdownLink(IModel model)
+    {
+        string modeltype = GetFilepathOfNamespace(model.GetType());
+        return $"[{model.GetType()}](https://github.com/APSIMInitiative/ApsimX/blob/master/" + modeltype.Replace(".", "/") + ".cs)";
+    }
+
+    /// <summary>
+    /// Returns a DataTable with each Phase listed for documentation
+    /// </summary>
+    public static DataTable GetPhaseTable(Phenology phenology)
+    {
+        DataTable phaseTable = new DataTable();
+        phaseTable.Columns.Add("Number", typeof(int));
+        phaseTable.Columns.Add("Name", typeof(string));
+        phaseTable.Columns.Add("Type", typeof(string));
+        phaseTable.Columns.Add("Start Stage", typeof(string));
+        phaseTable.Columns.Add("End Stage", typeof(string));
+
+        int n = 1;
+        foreach (IPhase child in phenology.Node.FindChildren<IPhase>())
+        {
+            string phasetype = GetFilepathOfNamespace(child.GetType());
+            DataRow row = phaseTable.NewRow();
+            row[0] = n;
+            row[1] = child.Name;
+            row[2] = GetGithubMarkdownLink(child);
+            row[3] = (child as IPhase).Start;
+            row[4] = (child as IPhase).End;
+            phaseTable.Rows.Add(row);
+            n++;
+        }
+        return phaseTable;
     }
 }

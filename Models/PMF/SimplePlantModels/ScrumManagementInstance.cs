@@ -14,26 +14,26 @@ namespace Models.PMF.SimplePlantModels
         /// <summary>Name of this crop instance.</summary>
         public string CropName { get; set; }
 
-        /// <summary>Establishment date.</summary>
+        /// <summary>Date to establish the crop.</summary>
         public DateTime EstablishDate { get; set; }
 
-        /// <summary>Establishment stage.</summary>
+        /// <summary>Establishment stage (e.g. seed or seedling).</summary>
         public string EstablishStage { get; set; }
         
-        /// <summary>Planting depth (mm).</summary>
+        /// <summary>Planting depth, initial root depth (mm).</summary>
         public double PlantingDepth { get; set; }
 
-        /// <summary>Planting stage.</summary>
-        public string HarvestStage { get; set; }
-
-        /// <summary>Expected crop yield, fresh weight (t/ha)</summary>
+        /// <summary>Expected crop yield, fresh weight (t/ha).</summary>
         public double ExpectedYield { get; set; }
 
-        /// <summary>Harvest date.</summary>
+        /// <summary>Stage to harvest the crop (e.g. maturity or ripe).</summary>
+        public string HarvestStage { get; set; }
+
+        /// <summary>Date to harvest the crop.</summary>
         public Nullable <DateTime> HarvestDate { get; set; }
 
         /// <summary>Thermal time sum from establishment to harvest (oCd).</summary>
-        public double TtEstabToHarv { get; set; }
+        public double Tt_EstablishmentToHarvest { get; set; }
 
         /// <summary>Proportion of expected yield that is left in the field at harvest (0-1).</summary>
         public double FieldLoss { get; set; }
@@ -41,11 +41,14 @@ namespace Models.PMF.SimplePlantModels
         /// <summary>Proportion of stover that is removed from the field at harvest (0-1).</summary>
         public double ResidueRemoval { get; set; }
 
-        /// <summary>Proportion of residues that are incorporated into the soil by cultivation at harvest (0-1)</summary>
+        /// <summary>Proportion of residues that are incorporated into the soil by cultivation at harvest (0-1).</summary>
         public double ResidueIncorporation { get; set; }
 
         /// <summary>Depth down to which residues are incorporated into the soil by cultivation at harvest (mm).</summary>
         public double ResidueIncorporationDepth { get; set; }
+
+        /// <summary>Fraction of residues that remain standing</summary>
+        public double FractionStanding { get; set; }
 
         /// <summary>Flag whether fertiliser be applied to this crop (to be used by manager scripts).</summary>
         /// <remarks>Note, this is a flag for managers to use, SCRUM does not calculate its own fertiliser applications.</remarks>
@@ -58,30 +61,31 @@ namespace Models.PMF.SimplePlantModels
         /// <summary>Default constructor</summary>
         public ScrumManagementInstance(){ }
 
-        /// <summary>Management class constructor</summary>
-        /// /// <param name="cropName">Name of the crop</param>
+        /// <summary>Management class constructor.</summary>
+        /// <param name="cropName">Name of the crop</param>
         /// <param name="establishDate">Date to establish the crop</param>
         /// <param name="establishStage">Phenology stage at establishment</param>
         /// <param name="harvestStage">Phenology stage at harvest</param>
         /// <param name="expectedYield">Crop expected yield (t/ha)</param>
         /// <param name="harvestDate">Date to harvest the crop</param>
-        /// <param name="ttEstabToHarv">Sum of thermal time from establishment to harvest</param>
+        /// <param name="ttEstablishmentToHarvest">Sum of thermal time from establishment to harvest</param>
         /// <param name="plantingDepth">Planting depth (mm)</param>
         /// <param name="fieldLoss">Proportion of product lost at harvest, returned to field (0-1)</param>
         /// <param name="residueRemoval">Proportion of stover removed off field at harvest (0-1)</param>
         /// <param name="residueIncorporation">Proportion of residues to incorporate into the soil at harvest (0-1)</param>
         /// <param name="residueIncorporationDepth">Depth to incorporate the residues (mm)</param>
+        /// <param name="fractionStanding">Depth to incorporate the residues (mm)</param>
         /// <param name="isFertilised">Flag whether the crop raises an event with fertiliser requirements</param>
         /// <param name="firstFertDate">Date of first fertiliser application, passed on the fertiliser event</param>
         public ScrumManagementInstance(string cropName, DateTime establishDate, string establishStage,
                                        string harvestStage, double expectedYield,
-                                       Nullable<DateTime> harvestDate = null, double ttEstabToHarv = double.NaN,
+                                       Nullable<DateTime> harvestDate = null, double ttEstablishmentToHarvest = double.NaN,
                                        double plantingDepth = 15, double fieldLoss = 0, double residueRemoval = 0,
-                                       double residueIncorporation = 1, double residueIncorporationDepth = 150,
+                                       double residueIncorporation = 1, double residueIncorporationDepth = 150, double fractionStanding = 0,
                                        bool isFertilised = true, Nullable<DateTime> firstFertDate = null)
         {
             // check harvest timing setup
-            if (((harvestDate == null) || (harvestDate < establishDate)) && (double.IsNaN(ttEstabToHarv) || (ttEstabToHarv == 0)))
+            if (((harvestDate == null) || (harvestDate < establishDate)) && (double.IsNaN(ttEstablishmentToHarvest) || (ttEstablishmentToHarvest == 0)))
             {
                 throw new Exception("A valid harvest date OR a non-zero thermal time sum (from establish to harvest) must be provided when initialising a ScrumManagementInstance");
             }
@@ -96,13 +100,14 @@ namespace Models.PMF.SimplePlantModels
             ResidueRemoval = residueRemoval;
             ResidueIncorporation = residueIncorporation;
             ResidueIncorporationDepth = residueIncorporationDepth;
+            FractionStanding = fractionStanding;
             HarvestDate = harvestDate;
-            TtEstabToHarv = ttEstabToHarv;
+            Tt_EstablishmentToHarvest = ttEstablishmentToHarvest;
             IsFertilised = isFertilised;
             FirstFertDate = (FirstFertDate == null) ? establishDate : firstFertDate;
         }
 
-        /// <summary>Constructor</summary>
+        /// <summary>Management class constructor.</summary>
         /// <param name="cropParams">Dictionary with the list of crop parameters</param>
         /// <param name="today">A date to check for establishment</param>
         public ScrumManagementInstance(Dictionary<string, string> cropParams, DateTime today)
@@ -136,9 +141,9 @@ namespace Models.PMF.SimplePlantModels
                         HarvestDate = DateTime.Parse(cropParams["HarvestDate"] + "-" + (today.Year + 2));
                 }
             }
-            else if (cropParams["TtEstabToHarv"] != "")
+            else if (cropParams["TtEstablishmentToHarvest"] != "")
             {
-                TtEstabToHarv = double.Parse(cropParams["TtEstabToHarv"]);
+                Tt_EstablishmentToHarvest = double.Parse(cropParams["TtEstablishmentToHarvest"]);
             }
             else 
             {
@@ -179,6 +184,15 @@ namespace Models.PMF.SimplePlantModels
             catch
             {
                 ResidueIncorporationDepth = 150;
+            }
+
+            try 
+            {
+                FractionStanding = double.Parse(cropParams["StandingFraction"]);
+            }
+            catch
+            {
+                FractionStanding = 0;
             }
 
             try

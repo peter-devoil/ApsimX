@@ -13,6 +13,7 @@ using Models.Core;
 using UserInterface.Views;
 using System.Linq;
 using Gtk.Sheet;
+using APSIM.Numerics;
 
 namespace UserInterface.Presenters
 {
@@ -50,7 +51,7 @@ namespace UserInterface.Presenters
 
         /// <summary>Hold an array of months for the graph,  by default, is set to will Jan yyyy to Dec yyyy, except where
         /// data being displays is not for full year</summary>
-        private string[] monthsToDisplay = DateUtilities.MONTHS_3_LETTERS;
+        private string[] monthsToDisplay = DateUtilities.MONTHS_3_LETTERS.Take(12).ToArray();
 
         /// <summary>The explorer presenter</summary>
         private ExplorerPresenter explorerPresenter;
@@ -76,8 +77,8 @@ namespace UserInterface.Presenters
             this.weatherDataView.ConstantsFileSelected += OnConstantsFileSelected;
             this.weatherDataView.ExcelSheetChangeClicked += this.ExcelSheetValueChanged;
 
-            this.weatherDataView.ShowConstantsFile(Path.GetExtension(weatherData.FullFileName) == ".csv");
-            this.WriteTableAndSummary(this.weatherData.FullFileName, this.weatherData.ExcelWorkSheetName);
+            this.weatherDataView.ShowConstantsFile(Path.GetExtension(weatherData.FileName) == ".csv");
+            this.WriteTableAndSummary(this.weatherData.FileName, this.weatherData.ExcelWorkSheetName);
             this.weatherDataView.TabIndex = this.weatherData.ActiveTabIndex;
             if (this.weatherData.StartYear >= 0)
                 this.weatherDataView.GraphStartYearValue = this.weatherData.StartYear;
@@ -102,7 +103,8 @@ namespace UserInterface.Presenters
         {
             bool isCsv = Path.GetExtension(fileName) == ".csv";
             this.weatherDataView.ShowConstantsFile(isCsv);
-            if (this.weatherData.FullFileName != PathUtilities.GetAbsolutePath(fileName, this.explorerPresenter.ApsimXFile.FileName))
+
+            if (!PathUtilities.ComparePaths(this.weatherData.FileName, fileName, this.explorerPresenter.ApsimXFile.FileName))
             {
                 if (ExcelUtilities.IsExcelFile(fileName))
                 {
@@ -110,10 +112,6 @@ namespace UserInterface.Presenters
                     this.weatherDataView.ShowExcelSheets(true);
                     this.sheetNames = ExcelUtilities.GetWorkSheetNames(fileName);
                     this.weatherDataView.PopulateDropDownData(this.sheetNames);
-
-                    // We want to attempt to update the table/summary now. This may fail if the
-                    // sheet name is incorrect/not set.
-                    this.WriteTableAndSummary(fileName);
                 }
                 else
                 {
@@ -122,8 +120,9 @@ namespace UserInterface.Presenters
 
                     // as a precaution, set this to nothing
                     this.weatherData.ExcelWorkSheetName = string.Empty;
-                    this.WriteTableAndSummary(fileName);
+
                 }
+                this.WriteTableAndSummary(fileName);
             }
         }
 
@@ -170,10 +169,9 @@ namespace UserInterface.Presenters
         /// <param name="sheetName">The sheet name</param>
         public void ExcelSheetValueChanged(string fileName, string sheetName)
         {
-            if (!string.IsNullOrEmpty(sheetName))
+            if (!string.IsNullOrEmpty(fileName) && !string.IsNullOrEmpty(sheetName))
             {
-                if ((this.weatherData.FullFileName != PathUtilities.GetAbsolutePath(fileName, this.explorerPresenter.ApsimXFile.FileName)) ||
-                    (this.weatherData.ExcelWorkSheetName != sheetName))
+                if (!PathUtilities.ComparePaths(this.weatherData.FileName, fileName, this.explorerPresenter.ApsimXFile.FileName) || (this.weatherData.ExcelWorkSheetName != sheetName))
                 {
                     this.WriteTableAndSummary(fileName, sheetName);
                 }
@@ -202,9 +200,10 @@ namespace UserInterface.Presenters
             this.weatherDataView.GraphRadiation.Clear();
             this.weatherDataView.GraphRadiation.Refresh();
             this.graphMetData = new DataTable();
+
+            string fullFilePath = PathUtilities.GetAbsolutePath(filename, this.explorerPresenter.ApsimXFile.FileName);
             if (filename != null)
             {
-                this.weatherDataView.Filename = PathUtilities.GetAbsolutePath(filename, this.explorerPresenter.ApsimXFile.FileName);
                 try
                 {
                     if (ExcelUtilities.IsExcelFile(filename))
@@ -213,7 +212,7 @@ namespace UserInterface.Presenters
                         this.weatherDataView.ShowExcelSheets(true);
                         if (this.sheetNames == null)
                         {
-                            this.sheetNames = ExcelUtilities.GetWorkSheetNames(filename);
+                            this.sheetNames = ExcelUtilities.GetWorkSheetNames(fullFilePath);
                             this.weatherDataView.ExcelSheetChangeClicked -= this.ExcelSheetValueChanged;
                             this.weatherDataView.PopulateDropDownData(this.sheetNames);
                             this.weatherDataView.ExcelSheetChangeClicked += this.ExcelSheetValueChanged;
@@ -229,10 +228,10 @@ namespace UserInterface.Presenters
                     try
                     {
                         this.weatherData.ExcelWorkSheetName = sheetName;
-                        string newFileName = PathUtilities.GetAbsolutePath(filename, this.explorerPresenter.ApsimXFile.FileName);
+                        string newFileName = PathUtilities.GetRelativePath(filename, this.explorerPresenter.ApsimXFile.FileName);
                         var changes = new List<ChangeProperty.Property>();
-                        if (weatherData.FullFileName != newFileName)
-                            changes.Add(new ChangeProperty.Property(weatherData, nameof(weatherData.FullFileName), newFileName));
+                        if (weatherData.FileName != newFileName)
+                            changes.Add(new ChangeProperty.Property(weatherData, nameof(weatherData.FileName), newFileName));
                         // Set constants file name to null iff the new file name is not a csv file.
                         if (Path.GetExtension(newFileName) != ".csv" && weatherData.ConstantsFile != null)
                             changes.Add(new ChangeProperty.Property(weatherData, nameof(weatherData.ConstantsFile), null));
@@ -270,8 +269,13 @@ namespace UserInterface.Presenters
                 }
             }
 
-            // this.weatherDataView.Filename = PathUtilities.GetRelativePath(filename, this.explorerPresenter.ApsimXFile.FileName);
-            this.weatherDataView.Filename = PathUtilities.GetAbsolutePath(filename, this.explorerPresenter.ApsimXFile.FileName);
+            string relativeFilePath = fullFilePath;
+            Simulations simulations = weatherData.Node.FindParent<Simulations>(recurse: true);
+            if (simulations != null)
+                relativeFilePath = PathUtilities.GetRelativePathAndRootExamples(filename, simulations.FileName);
+
+            this.weatherDataView.Filename = fullFilePath;
+            this.weatherDataView.FilenameRelative = relativeFilePath;
             this.weatherDataView.ConstantsFileName = weatherData.ConstantsFile;
             this.weatherDataView.ExcelWorkSheetName = sheetName;
         }
@@ -546,8 +550,8 @@ namespace UserInterface.Presenters
                         double[] avgMonthlyRainfall = DataTableUtilities.AverageMonthlyTotals(table, "rain", this.dataFirstDate, this.dataLastDate);
                         this.PopulateMonthlyRainfallGraph(
                                                        "Monthly Rainfall",
-                                                        this.monthsToDisplay, 
-                                                        monthlyRainfall, 
+                                                        this.monthsToDisplay,
+                                                        monthlyRainfall,
                                                         avgMonthlyRainfall);
                     }
                 }
@@ -635,7 +639,7 @@ namespace UserInterface.Presenters
                 this.weatherDataView.GraphStartYearMinValue = this.dataStartDate.Year;
                 this.weatherDataView.GraphStartYearValue = this.dataStartDate.Year;
             }
-            else  
+            else
             {
                 // we are between our original range
                 if (this.weatherDataView.GraphStartYearMinValue < this.dataStartDate.Year)
@@ -752,7 +756,7 @@ namespace UserInterface.Presenters
         }
 
         /// <summary>
-        /// Displays the Monthly rainfall chart, which shows the current years rain (by month), and the long term average monthly rainfall, 
+        /// Displays the Monthly rainfall chart, which shows the current years rain (by month), and the long term average monthly rainfall,
         /// based on all data in metfile
         /// </summary>
         /// <param name="title">The title</param>

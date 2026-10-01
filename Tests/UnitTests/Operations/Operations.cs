@@ -21,7 +21,9 @@ namespace UnitTests
                 " // 2000-01-01 [NodeName].Function(1000) ",
                 "//\t2000-01-01\t[NodeName].Function(1000)",
                 "\t//\t2000-01-01\t[NodeName].Function(1000)\t",
-                "//2000/01/01 [NodeName].Function(1000)"
+                "//2000/01/01 [NodeName].Function(1000)",
+                "",
+                "\n\t\r"
             };
 
             Operation[] expectedOperations =
@@ -35,7 +37,9 @@ namespace UnitTests
                 new Operation(false, null, null, passingStrings[6]),
                 new Operation(false, null, null, passingStrings[7]),
                 new Operation(false, null, null, passingStrings[8]),
-                new Operation(false, null, null, passingStrings[9])
+                new Operation(false, null, null, passingStrings[9]),
+                new Operation(false, null, null, ""),
+                new Operation(false, null, null, "")
             };
 
             for (int i = 0; i < passingStrings.Length; i++)
@@ -53,7 +57,6 @@ namespace UnitTests
                 "[NodeName].Function(1000) 2000-01-01", //wrong order
                 "2000-01-01 ",                          //missing action
                 " [NodeName].Function(1000)",           //missing date
-                "",                                     //empty string
                 null,                                   //null
                 "/2000-01-01 [NodeName].Function(1000)", //not enough comments
             };
@@ -96,6 +99,22 @@ namespace UnitTests
 
             Assert.That(argumentValues[0], Is.EqualTo(1));
             Assert.That(argumentValues[1], Is.EqualTo(new int[] { 2, 3 }));
+        }
+
+        /// <summary>Ensure yearless dates fire every year on that day-month, and yearful dates only on that day-month-year combo.</summary>
+        [Test]
+        public void TestTriggersOnDate()
+        {
+            var op1 = Operation.ParseOperationString("01-Jan [Plant].Sow()");
+            var op2 = Operation.ParseOperationString("2026-01-01 [Plant].Sow()");
+
+            Assert.That(op1.TriggersOnDate(new(2026, 1, 1)), Is.EqualTo(true));
+            Assert.That(op1.TriggersOnDate(new(1900, 1, 1)), Is.EqualTo(true));
+            Assert.That(op1.TriggersOnDate(new(2026, 2, 2)), Is.EqualTo(false));
+
+            Assert.That(op2.TriggersOnDate(new(2026, 1, 1)), Is.EqualTo(true));
+            Assert.That(op2.TriggersOnDate(new(1900, 1, 1)), Is.EqualTo(false));
+            Assert.That(op2.TriggersOnDate(new(2026, 2, 2)), Is.EqualTo(false));
         }
     }
 }

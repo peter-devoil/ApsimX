@@ -132,9 +132,26 @@ namespace Gtk.Sheet
                 if (saveEdit)
                 {
                     sheet.CellSelector.GetSelection(out int selectedColumnIndex, out int selectedRowIndex);
-                    sheet.DataProvider.SetCellContents(new int[]{selectedColumnIndex}, 
-                                                        new int[]{selectedRowIndex - sheet.NumberFrozenRows}, 
-                                                        new string[]{entry.Text});
+                    int rowIndex = selectedRowIndex - sheet.NumberFrozenRows;
+                    int columnIndex = selectedColumnIndex - sheet.NumberFrozenColumns;
+                    string value = sheet.DataProvider.GetCellContents(columnIndex, rowIndex);
+                    try
+                    {
+                        sheet.DataProvider.SetCellContent(columnIndex, rowIndex, entry.Text);
+                    }
+                    catch (Exception ex)
+                    {
+                        //error was thrown, restore original value
+                        try
+                        {
+                            sheet.DataProvider.SetCellContent(columnIndex, rowIndex, value);
+                            sheet.OnException(ex);
+                        }
+                        catch (Exception ex2)
+                        {
+                            sheet.OnException(new Exception("Error while updating cell value", ex2));
+                        }
+                    }
                     sheet.CalculateBounds(selectedColumnIndex, selectedRowIndex);
                 }
 

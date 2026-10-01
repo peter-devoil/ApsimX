@@ -4,19 +4,15 @@ using Models.Core;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using Models.CLEM.Resources;
-using System.Text.Json.Serialization;
+using Newtonsoft.Json;
 using Models.CLEM.Interfaces;
-using System.ComponentModel.DataAnnotations;
-using static Models.Core.ScriptCompiler;
 
 namespace Models.CLEM.Groupings
 {
     ///<summary>
     /// Contains a group of filters to identify individual other animals to feed
-    ///</summary> 
+    ///</summary>
     [Serializable]
     [ViewName("UserInterface.Views.PropertyView")]
     [PresenterName("UserInterface.Presenters.PropertyPresenter")]
@@ -53,16 +49,9 @@ namespace Models.CLEM.Groupings
 
         /// <inheritdoc/>
         [Description("Category for transactions")]
+        [Category("Simulation", "Reporting")]
         [Models.Core.Display(Order = 500)]
         public string TransactionCategory { get; set; }
-
-        /// <summary>
-        /// Constructor
-        /// </summary>
-        public OtherAnimalsFeedGroup()
-        {
-            base.ModelSummaryStyle = HTMLSummaryStyle.SubActivity;
-        }
 
         /// <summary>An event handler to allow us to initialise ourselves.</summary>
         /// <param name="sender">The sender.</param>
@@ -70,13 +59,13 @@ namespace Models.CLEM.Groupings
         [EventSubscribe("CLEMInitialiseActivity")]
         private void OnCLEMInitialiseActivity(object sender, EventArgs e)
         {
-            feedActivityParent = FindAncestor<OtherAnimalsActivityFeed>();
+            feedActivityParent = Structure.FindParent<OtherAnimalsActivityFeed>(recurse: true);
             SelectedOtherAnimalsType = Resources.FindResourceType<ResourceBaseWithTransactions, IResourceType>(this, AnimalTypeName, OnMissingResourceActionTypes.ReportErrorAndStop, OnMissingResourceActionTypes.ReportErrorAndStop) as OtherAnimalsType;
 
             currentFeedRequest = new ResourceRequest()
             {
                 AllowTransmutation = true,
-                Resource = feedActivityParent.FeedType,
+                Resource = feedActivityParent.FeedType as IResourceType,
                 ResourceType = typeof(AnimalFoodStore),
                 ResourceTypeName = feedActivityParent.FeedTypeName,
                 ActivityModel = Parent as CLEMActivityBase,
@@ -85,7 +74,7 @@ namespace Models.CLEM.Groupings
             };
 
             // warning that any take filters will be ignored.
-            if (FindAllDescendants<TakeFromFiltered>().Any())
+            if (Structure.FindChildren<TakeFromFiltered>(recurse: true).Any())
             {
                 string warnMessage = $"The [TakeFiltered] component of [f={this.NameWithParent}] is not valid for [OtherAnimalFeedGroup].Take or Skip will be ignored.";
                 Warnings.CheckAndWrite(warnMessage, Summary, this, MessageType.Warning);
@@ -115,7 +104,7 @@ namespace Models.CLEM.Groupings
                     default:
                         break;
                 }
-                if(feedNeeded > 0)
+                if(feedNeeded > 0.001)
                 {
                     currentFeedRequest.Required = feedNeeded;
                     foreach (var cohort in selectedCohorts)
@@ -123,8 +112,6 @@ namespace Models.CLEM.Groupings
                         // by setting this during the OtherAnimalsActivityFeed it will ensure these fed cohorts are not considered again as they will not be in the IEnumerable on next call.
                         cohort.Considered = true;
                     }
-                    // remove fed cohorts from temp list to avoid double handling of a cohort in the parent activity
-                    //feedActivityParent.CohortsToBeFed = feedActivityParent.CohortsToBeFed.Where(a => !selectedCohorts.Contains(a));
                 }
             }
         }

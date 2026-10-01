@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using APSIM.Core;
 using Models.Core;
 
 namespace Models.Functions
@@ -21,12 +22,18 @@ namespace Models.Functions
         [Link(Type = LinkType.Child, ByName = true)]
         IFunction Upper = null;
 
+        [EventSubscribe("StartOfSimulation")]
+        private void OnStartOfSimulation(object sender, EventArgs e)
+        {
+            FunctionUtilities.ValidateFunctionChildren(Node);
+        }
+
         /// <summary>Gets the value.</summary>
         /// <value>The value.</value>
         public double Value(int arrayIndex = -1)
         {
             if (ChildFunctions == null)
-                ChildFunctions = FindAllChildren<IFunction>().ToList();
+                ChildFunctions = Node.FindChildren<IFunction>().ToList();
             foreach (IFunction child in ChildFunctions)
                 if (child != Lower && child != Upper)
                     return Math.Max(Math.Min(Upper.Value(arrayIndex), child.Value(arrayIndex)), Lower.Value(arrayIndex));

@@ -5,6 +5,8 @@ using System.Data;
 using System.Drawing;
 using System.Linq;
 using System.Text.RegularExpressions;
+using APSIM.Core;
+using APSIM.Numerics;
 using APSIM.Shared.Graphing;
 using APSIM.Shared.Utilities;
 using Models.Core.Run;
@@ -55,7 +57,7 @@ namespace Models
                                 double markerModifier,
                                 IEnumerable<string> inScopeSimulationNames = null,
                                 string filter = null,
-                                List<SimulationDescription.Descriptor> descriptors = null,
+                                List<SimulationDescriptor> descriptors = null,
                                 string customTitle = null)
         {
             this.Series = series;
@@ -134,7 +136,7 @@ namespace Models
         }
 
         /// <summary>Descriptors associate with this definition.</summary>
-        public List<SimulationDescription.Descriptor> Descriptors { get; }
+        public List<SimulationDescriptor> Descriptors { get; }
 
         /// <summary>Gets the colour.</summary>
         public Color Colour { get; set; }
@@ -218,7 +220,7 @@ namespace Models
         public IEnumerable Y2 { get; private set; }
 
         /// <summary>The simulation names for each point.</summary>
-        public IEnumerable<string> SimulationNamesForEachPoint { get; private set; }
+        public IEnumerable SimulationNamesForEachPoint { get; private set; }
 
         /// <summary>Gets the error values for the x series</summary>
         public IEnumerable<double> XError { get; private set; }
@@ -271,7 +273,7 @@ namespace Models
         /// <param name="reader">Data store reader.</param>
         public void ReadData(DataTable data, List<SimulationDescription> simulationDescriptions, IStorageReader reader)
         {
-            if (X != null && Y != null)
+            if (data != null && X != null && Y != null)
                 return;
 
             if (Series.TableName == null)
@@ -286,17 +288,17 @@ namespace Models
                     //Get the name of each sim that has a matching descriptor to this graph
                     foreach (SimulationDescription sim in simulationDescriptions) {
                         bool matched = true;
-                        foreach (SimulationDescription.Descriptor descriptor in Descriptors)
+                        foreach (SimulationDescriptor descriptor in Descriptors)
                         {
                             if (!sim.HasDescriptor(descriptor))
                             {
                                 matched = false;
                             }
-                            else 
+                            else
                             {
                                 //Remove this descriptor from column name so that it isn't used to filter again
-                                if (descriptor.Name.CompareTo("Zone") != 0) 
-                                    columnNames.Remove(descriptor.Name); 
+                                if (descriptor.Name.CompareTo("Zone") != 0)
+                                    columnNames.Remove(descriptor.Name);
                             }
                         }
                         if (matched) {
@@ -321,10 +323,15 @@ namespace Models
                     if (columnNames.Contains("SimulationID"))
                         filter = AddToFilter(filter, $"SimulationID in ({simulationIdsCSV})");
                 }
-
+                
                 //cleanup filter
                 filter = filter?.Replace('\"', '\'');
                 filter = RemoveMiddleWildcards(filter);
+
+                //Filter out any columns with empty values that might get converted wrongly by the graph system
+                foreach (DataColumn field in data.Columns)
+                    if (field.DataType != typeof(string) && (field.ColumnName == XFieldName || field.ColumnName == YFieldName) )
+                        filter = AddToFilter(filter, $"[{field.ColumnName}] IS NOT NULL");
 
                 //apply our filter to the data
                 View = new DataView(data);
@@ -354,6 +361,7 @@ namespace Models
                         Y = MathUtilities.Cumulative(Y as IEnumerable<double>);
                     if (Series.CumulativeX)
                         X = MathUtilities.Cumulative(X as IEnumerable<double>);
+                    SimulationNamesForEachPoint = GetDataFromView(View, "SimulationName");
                 }
             }
         }
@@ -362,8 +370,9 @@ namespace Models
         /// Return a list of field names that this definition will read from the data table.
         /// </summary>
         /// <param name="fieldsThatExist"></param>
+        /// <param name="structure">Structure instance</param>
         /// <returns></returns>
-        public List<string> GetFieldNames(List<string> fieldsThatExist)
+        public List<string> GetFieldNames(List<string> fieldsThatExist, IStructure structure)
         {
             var filter = GetFilter(fieldsThatExist);
             var fieldsToRead = new List<string>();
@@ -385,7 +394,7 @@ namespace Models
             fieldsToRead.AddRange(ExtractFieldNamesFromFilter(filter));
 
             // Add any fields from child graphable models.
-            foreach (IGraphable series in Series.FindAllChildren<IGraphable>())
+            foreach (IGraphable series in structure.FindChildren<IGraphable>(relativeTo: Series))
                 fieldsToRead.AddRange(series.GetExtraFieldsToRead(this));
             return fieldsToRead;
         }
@@ -409,11 +418,12 @@ namespace Models
                         else
                             filter = AddToFilter(filter, $"[{descriptor.Name}] = '{descriptor.Value}'");
                     }
-                        
+
                 }
             }
             if (!string.IsNullOrEmpty(userFilter))
                 filter = AddToFilter(filter, userFilter);
+
             return filter;
         }
 
@@ -441,11 +451,11 @@ namespace Models
 
             if (filter != null)
             {
-                var localFilter = filter;
+                var localFilter = filter.Replace("[", "").Replace("]","");
 
                 // Look for XXX in ('asdf', 'qwer').
                 string inPattern = @"(^|\s+)(?<FieldName>\S+)\s+IN\s+\(.+\)";
-                Match match = Regex.Match(localFilter, inPattern);
+                Match match = Regex.Match(localFilter, inPattern, RegexOptions.IgnoreCase);
                 while (match.Success)
                 {
                     if (match.Groups["FieldName"].Value != null)
@@ -457,10 +467,7 @@ namespace Models
                 }
 
                 // Remove brackets.
-                localFilter = localFilter.Replace("(", "");
-                localFilter = localFilter.Replace(")", "");
-                localFilter = localFilter.Replace("[", "");
-                localFilter = localFilter.Replace("]", "");
+                localFilter = localFilter.Replace("(", "").Replace(")", "");
 
                 // Look for individual filter clauses (e.g. A = B).
                 string clausePattern = @"\[?(?<FieldName>[^\s\]]+)\]?\s*(=|>|<|>=|<=)\s*(|'|\[|\w)";
@@ -477,7 +484,7 @@ namespace Models
 
                 // Look for LIKE keyword
                 string likePattern = @"(?<FieldName>\S+)\s+LIKE";
-                match = Regex.Match(localFilter, likePattern);
+                match = Regex.Match(localFilter, likePattern, RegexOptions.IgnoreCase);
                 while (match.Success)
                 {
                     if (!string.IsNullOrWhiteSpace(match.Groups["FieldName"].Value))
@@ -498,7 +505,7 @@ namespace Models
         /// <returns>The return data or null if not found</returns>
         private IEnumerable GetDataFromModels(string fieldName)
         {
-            return Series.FindByPath(fieldName)?.Value as IEnumerable;
+            return Series.Node.Get(fieldName) as IEnumerable;
         }
 
         /// <summary>Gets a column of data from a view.</summary>
