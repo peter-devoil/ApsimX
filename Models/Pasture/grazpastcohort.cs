@@ -1,4 +1,7 @@
 ﻿using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using StdUnits;
 using static Models.GrazPlan.GrazType;
@@ -340,7 +343,7 @@ namespace Models.GrazPlan
         }
 
         /// <summary>
-        ///
+        /// Set the nutrient value for this herbage part.
         /// </summary>
         /// <param name="part"></param>
         /// <param name="DMD"></param>
@@ -408,11 +411,11 @@ namespace Models.GrazPlan
         //public void setRootDM(int iAge, int iLayer, double fValue)
 
         /// <summary>
-        ///
+        /// Get the average nutrient content of the roots in a layer
         /// </summary>
         /// <param name="age"></param>
-        /// <param name="layer"></param>
-        /// <param name="elem"></param>
+        /// <param name="layer">Soil layer 1-n</param>
+        /// <param name="elem">N,P,S</param>
         /// <returns></returns>
         public double GetRootNutr(int age, int layer, TPlantElement elem)
         {
@@ -438,23 +441,25 @@ namespace Models.GrazPlan
         }
 
         /// <summary>
-        ///
+        /// Set the nutrient value of this root cohort
         /// </summary>
         /// <param name="age"></param>
-        /// <param name="layer"></param>
-        /// <param name="elem"></param>
-        /// <param name="value"></param>
+        /// <param name="layer">1..n</param>
+        /// <param name="elem">N,P,S</param>
+        /// <param name="value">New value</param>
         public void SetRootNutr(int age, int layer, TPlantElement elem, double value)
         {
             this.Roots[age, layer].Nu[(int)elem] = value;
+            if (double.IsNaN(value))
+                throw new Exception("NaN detected in SetRootNutr");
         }
 
         /// <summary>
         /// Assumes that marginal totals in FCohorts[] are up-to-date
         /// </summary>
         /// <param name="age"></param>
-        /// <param name="layer"></param>
-        /// <param name="elem"></param>
+        /// <param name="layer">1-n</param>
+        /// <param name="elem">N,P,S</param>
         /// <returns></returns>
         private double GetRootConc(int age, int layer, TPlantElement elem)
         {
@@ -1069,9 +1074,8 @@ namespace Models.GrazPlan
         /// <summary>
         /// Set the root mass profile within a cohort and root age class to a default
         /// value. Used in initialisation.
-        /// * Assumes that iAge = TOTAL, EFFR or OLDR
         /// </summary>
-        /// <param name="age"></param>
+        /// <param name="age">TOTAL, EFFR or OLDR</param>
         /// <param name="rootDM"></param>
         /// <param name="depth"></param>
         public void SetDefaultRoots(int age, double rootDM, double depth)
@@ -1536,7 +1540,6 @@ namespace Models.GrazPlan
                         this.RootTranslocSum += this.FRootTransloc[age, layer];
                     }
                 }
-
                 limitNu = 1.0;
                 foreach (var Elem in values)
                 {
@@ -1642,6 +1645,26 @@ namespace Models.GrazPlan
                 }
 
                 this.FSeedNetGrowth.DM = this.FPartNetGrowth[ptSEED];
+
+                double leafNetGrowth = 0;
+                double stemNetGrowth = 0;
+                double rootNetGrowth = 0;
+                for (DMD = 1; DMD <= HerbClassNo; DMD++)
+                {
+                    leafNetGrowth += FShootNetGrowth[ptLEAF, DMD].DM;
+                    stemNetGrowth += FShootNetGrowth[ptSTEM, DMD].DM;
+                }
+                for (age = EFFR; age <= OLDR; age++)
+                    for (layer = 1; layer <= this.Owner.FSoilLayerCount; layer++)
+                        rootNetGrowth += FRootNetGrowth[age, layer].DM;
+
+                if (Pasture.logFileName != null)
+                    File.AppendAllLines(Pasture.logFileName, [
+                            $"Leaf net growth: {leafNetGrowth:F2}",
+                            $"Stem net growth: {stemNetGrowth:F2}",
+                            $"Root net growth: {rootNetGrowth:F2}",
+                            $"Seed net growth: {FSeedNetGrowth.DM:F2}",
+                        ]);
             }
         }
 
@@ -2401,7 +2424,6 @@ namespace Models.GrazPlan
         {
             int age, layer;
             int DMD;
-
             this.FNutrientInfo[(int)Elem].fRootTranslocSupply = 0.0;
             for (age = EFFR; age <= OLDR; age++)
             {
@@ -2631,7 +2653,7 @@ namespace Models.GrazPlan
                     {
                         for (layer = 1; layer <= this.FMaxRootLayer; layer++)
                         {
-                            nutrInfo.fUptake[(int)Nutr][area][layer] = supply[(int)Nutr][area][layer] / 10; //kg/ha to g/m2
+                            nutrInfo.fUptake[(int)Nutr][area][layer] = supply[(int)Nutr][area][layer] * RLD[layer]; //kg/ha to g/m2
                             uptakeAreaSum += nutrInfo.fUptake[(int)Nutr][area][layer];
                         }
                     }
@@ -3018,6 +3040,8 @@ namespace Models.GrazPlan
                             }
 
                             this.FRootNetGrowth[iAge, iLayer].Nu[(int)Elem] = fPropn * fPartSupply[ptROOT];
+                            if (double.IsNaN(this.FRootNetGrowth[iAge, iLayer].Nu[(int)Elem]))
+                                throw new Exception("NaN detected");
                         }
                     }
 
@@ -3109,6 +3133,8 @@ namespace Models.GrazPlan
                                 if ((this.Roots[iAge, iLayer].Nu[(int)elem] > 1.0E-5) || (estabCohort.Roots[iAge, iLayer].DM > 0.0))
                                 {
                                     estabCohort.Roots[iAge, iLayer].Nu[(int)elem] = estabCohort.Roots[iAge, iLayer].Nu[(int)elem] + this.Roots[iAge, iLayer].Nu[(int)elem];
+                                    if (double.IsNaN(estabCohort.Roots[iAge, iLayer].Nu[(int)elem]))
+                                        throw new Exception("NaN detected in TransferSenescedNutrients");
                                 }
 
                                 this.Roots[iAge, iLayer].Nu[(int)elem] = 0.0;

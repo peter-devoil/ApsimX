@@ -1,12 +1,13 @@
 ﻿using System;
 using System.Linq;
+using APSIM.Core;
+using APSIM.Numerics;
 using APSIM.Shared.Utilities;
 using Models.Core;
 
 namespace Models.Functions
 {
     /// <summary>
-    /// [DocumentMathFunction /]
     /// Returns special values if
     /// the numerator is 0 or if the denominator is 0.
     /// </summary>
@@ -28,12 +29,18 @@ namespace Models.Functions
         [Description("Value to return if denominator is 0:")]
         public double DenominatorErrVal { get; set; }
 
+        [EventSubscribe("StartOfSimulation")]
+        private void OnStartOfSimulation(object sender, EventArgs e)
+        {
+            FunctionUtilities.ValidateFunctionChildren(Node);
+        }
+
         /// <summary>
         /// Returns the value of the function.
         /// </summary>
         public double Value(int arrayIndex = -1)
         {
-            IFunction[] children = this.FindAllChildren<IFunction>().ToArray();
+            IFunction[] children = Node.FindChildren<IFunction>().ToArray();
             int n = children?.Length ?? 0;
             if (n < 2)
                 throw new Exception($"Error in ProtectedDivideFunction {Name}: 2 child functions required, only found {n}");

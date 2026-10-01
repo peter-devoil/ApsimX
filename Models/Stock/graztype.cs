@@ -183,7 +183,7 @@ namespace Models.GrazPlan
 
         public enum TSoilNutrient { snNO3, snNH4, snUrea, snPOx, snSO4, snElS, snCations };
 
-		// SoilArray         = packed array[SURFACE..MaxSoilLayers] of Float;
+        // SoilArray         = packed array[SURFACE..MaxSoilLayers] of Float;
         // LayerArray        = packed array[1..MaxSoilLayers]       of Float;
         // DigClassArray     = packed array[1..DigClassNo]          of Float; // double[GrazType.DigClassNo+1]
         // PastureArray      = packed array[1..MaxPlantSpp]         of Float;
@@ -201,7 +201,7 @@ namespace Models.GrazPlan
             public double DM;
 
             /// <summary>
-            /// Nutrients in kg element/ha
+            /// Nutrients in kg element/ha [0, N...
             /// </summary>
             public double[] Nu = new double[4];
 

@@ -1,9 +1,8 @@
 ﻿using Gtk;
 using System;
 using System.Drawing;
-using System.Reflection.Emit;
 using UserInterface.Interfaces;
-using Utility;
+using APSIMNG.Utility;
 
 namespace UserInterface.Views
 {
@@ -17,9 +16,9 @@ namespace UserInterface.Views
 
         private Gtk.Label label2;
 
-        private Gtk.VPaned box1;
+        private Gtk.Paned box1;
 
-        private Gtk.HPaned box2;
+        private Gtk.Paned box2;
 
         /// <summary>Constructor</summary>
         /// <param name="owner">The owner widget.</param>
@@ -40,10 +39,10 @@ namespace UserInterface.Views
             sw.Add((editorView as ViewBase).MainWidget);
 
             Rectangle bounds = GtkUtilities.GetBorderOfRightHandView(owner);
-            box1 = (VPaned)builder.GetObject("vpaned1");
+            box1 = (Paned)builder.GetObject("vpaned1");
             box1.Position = (int)Math.Round(bounds.Height * 0.8);
 
-            box2 = (HPaned)builder.GetObject("hpaned2");
+            box2 = (Paned)builder.GetObject("hpaned2");
             box2.Position = (int)Math.Round(bounds.Width * 0.5);
         }
 

@@ -1,7 +1,7 @@
 {
   "$type": "Models.Core.Simulations, Models",
   "ExplorerWidth": 0,
-  "Version": 169,
+  "Version": 221,
   "Name": "Simulations",
   "Children": [
     {
@@ -147,7 +147,18 @@
               "Start": "Sowing",
               "End": "Germination",
               "Name": "Germinating",
-              "Children": [],
+              "Children": [
+                {
+                  "$type": "Models.Functions.Constant, Models",
+                  "FixedValue": 0.0,
+                  "Units": null,
+                  "Name": "MinSoilTemperature",
+                  "ResourceName": null,
+                  "Children": [],
+                  "Enabled": true,
+                  "ReadOnly": false
+                }
+              ],
               "IncludeInDocumentation": false,
               "Enabled": true,
               "ReadOnly": false
@@ -735,7 +746,7 @@
                   "Children": [
                     {
                       "$type": "Models.Memo, Models",
-                      "Text": "Value of 1.06 g/MJ for above ground growth from [HarringtonAndFownes1995] is increased to account for biomass partitioning to below-ground organs.\r\n",
+                      "Text": "Value of 1.06 g/MJ for above ground growth from [#HarringtonAndFownes1995] is increased to account for biomass partitioning to below-ground organs.\r\n",
                       "Name": "Memo",
                       "Children": [],
                       "IncludeInDocumentation": false,
@@ -855,7 +866,7 @@
               "Children": [
                 {
                   "$type": "Models.Memo, Models",
-                  "Text": "Value is taken from [HarringtonAndFownes1995].",
+                  "Text": "Value is taken from [#HarringtonAndFownes1995].",
                   "Name": "Memo",
                   "Children": [],
                   "IncludeInDocumentation": false,
@@ -1359,7 +1370,9 @@
           ],
           "IncludeInDocumentation": false,
           "Enabled": true,
-          "ReadOnly": false
+          "ReadOnly": false,
+          "MaxNConc": null,
+          "MinNConc": null
         },
         {
           "$type": "Models.PMF.Organs.Root, Models",
@@ -1901,7 +1914,9 @@
           ],
           "IncludeInDocumentation": false,
           "Enabled": true,
-          "ReadOnly": false
+          "ReadOnly": false,
+          "MaxNConc": null,
+          "MinNConc": null
         },
         {
           "$type": "Models.PMF.Organs.GenericOrgan, Models",
@@ -1984,7 +1999,7 @@
               "Children": [
                 {
                   "$type": "Models.Memo, Models",
-                  "Text": "Value taken from [Thomasetal1991].",
+                  "Text": "Value taken from [#Thomasetal1991].",
                   "Name": "Memo",
                   "Children": [],
                   "IncludeInDocumentation": false,
@@ -2389,7 +2404,10 @@
           ],
           "IncludeInDocumentation": false,
           "Enabled": true,
-          "ReadOnly": false
+          "ReadOnly": false,
+          "MaxNConc": null,
+          "MinNConc": null,
+          "CritNConc": null
         },
         {
           "$type": "Models.PMF.Organs.Nodule, Models",
@@ -2866,7 +2884,10 @@
           ],
           "IncludeInDocumentation": false,
           "Enabled": true,
-          "ReadOnly": false
+          "ReadOnly": false,
+          "MaxNConc": null,
+          "MinNConc": null,
+          "CritNConc": null
         },
         {
           "$type": "Models.PMF.Cultivar, Models",

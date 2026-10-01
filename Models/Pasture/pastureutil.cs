@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections;
 using static Models.GrazPlan.GrazType;
 
 namespace Models.GrazPlan
@@ -34,6 +35,9 @@ namespace Models.GrazPlan
 
         /// <summary>Convert from g/m^2 to kg/ha</summary>
         public const double GM2_KGHA = 10.0;
+
+        /// <summary>Convert kg/ha to g/m^2</summary>
+        public const double KGHA_GM2 = 0.1;
 
         /// <summary>Convert from m^2 to cm^2</summary>
         public const double M2_CM2 = 10000.0;
@@ -157,13 +161,16 @@ namespace Models.GrazPlan
         /// <returns></returns>
         public static double Div0(double X, double Y)
         {
-            if (X == 0.0)
+            if (X == 0.0 || Y == 0.0)
             {
                 return 0.0;
             }
             else
             {
-                return X / Y;
+                var value = X / Y;
+                if (double.IsNaN(value))
+                    throw new Exception("Divide by zero");
+                return value;
             }
         }
 
@@ -635,11 +642,11 @@ namespace Models.GrazPlan
         }
 
         /// <summary>
-        ///
+        /// Scale the mass value from the units specified to g/m^2
         /// </summary>
-        /// <param name="aValue"></param>
-        /// <param name="units"></param>
-        /// <returns></returns>
+        /// <param name="aValue">Value</param>
+        /// <param name="units">Units</param>
+        /// <returns>Scaled value</returns>
         public static double ReadMass(double aValue, string units)
         {
             double result;
@@ -669,6 +676,8 @@ namespace Models.GrazPlan
                 amount = Math.Min(amount, srcPool.Nu[(int)Elem]);
                 srcPool.Nu[(int)Elem] = srcPool.Nu[(int)Elem] - amount;
                 dstPool.Nu[(int)Elem] = dstPool.Nu[(int)Elem] + amount;
+                if (double.IsNaN(srcPool.Nu[(int)Elem]) || double.IsNaN(dstPool.Nu[(int)Elem]))
+                    throw new Exception("NaN detected in MoveNutrient");
             }
         }
     }
